@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# vpc-create.sh version 0.0.1
+
 # edit this to desired region
 # to get region list:
 # aws ec2 --region us-west-2 describe-regions --query "Regions[].RegionName" --output text 
@@ -30,8 +32,9 @@ aws --region $region ec2 attach-internet-gateway --vpc-id $vpcid --internet-gate
 aws --region $region ec2 create-tags --resources $igwid --tags Key=Name,Value=igw-$region
 
 
-# create route table for the public subnets to use to get out to internet
-rtbid=$(aws --region $region ec2  create-route-table --vpc-id $vpcid --output text | grep rtb | awk '{print $2}')
+# get route-table-id VPC auto creates and use for the public subnets to get out to internet
+rtbid=$(aws --region $region ec2  describe-route-tables --filters "Name=vpc-id,Values=$vpcid" --output text --query RouteTables[0].RouteTableId)
+#rtbid=$(aws --region $region ec2  create-route-table --vpc-id $vpcid --output text | grep rtb | awk '{print $2}')
 echo "route table id: $rtbid"
 
 
@@ -53,7 +56,7 @@ third=0
 for az in $azlist ;
 do
 
-    # Make public subnet for first az
+    # Make public default subnet for each az
     ((third+=1));
     subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
 
@@ -61,7 +64,10 @@ do
     #tag public subnet
     subnetId=`echo $subnet_result | awk '{print $9}'`
     echo "Public subnetId: $subnetId" 
-    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=sub-${az}-pub 
+    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=pub-${az} 
+
+    # enable auto assing Public IP on subnet
+    aws ec2 --region $region modify-subnet-attribute --subnet-id $subnetId --map-public-ip-on-launch
 
 
     # accociate route table to igw with public subnet 
@@ -76,7 +82,7 @@ do
     #tag private subnet
     subnetId=`echo $subnet_result | awk '{print $9}'`
     echo "private subnetId: $subnetId"
-    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=sub-${az}-pri
+    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=pri-${az}
     
 done
 
@@ -87,18 +93,9 @@ echo "VPC security-group: $sgid"
 
 
 # describe and tag security-group
-aws --region $region ec2  create-tags --resources $sgid --tags Key=Name,Value=default-sg-${region}
+aws --region $region ec2  create-tags --resources $sgid --tags Key=Name,Value=open-sg-${region}
 
-
-# create rules in the  security group
-# I may not need top create rules... The default allows all. Weh creating a instance you can create a new sucurity group
-# maybe I should create another security-group to use... not sure
-
-## also ...
-# nedd to set default subnet 
-# ... may enable auto-asigne IP as well... do more testing and decude what is needed
-
-# end goal is to be ready to use CFT after running script
+# the sg group above is wide open. I have not decided if I should create one here that is more specic and make the one above deny all...
 
 
 
