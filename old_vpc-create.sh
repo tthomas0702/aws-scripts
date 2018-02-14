@@ -8,6 +8,9 @@
 region="us-west-2"
 echo "*** Creating VPC in Region $region ***"
 
+# name of vpc
+name="test1"
+
 # create the basic VPC and save vpc-ip to a var
 vpcid_temp=$(aws ec2 --region $region create-vpc --cidr-block 10.0.0.0/16  --query "Vpc.VpcId")
 # need to remove " from vpcid var
@@ -18,7 +21,7 @@ echo "Created VPC $vpcid"
 
 
 # give VPC Name tag
-aws --region $region ec2 create-tags --resources $vpcid --tags Key=Name,Value=vpc-${region}
+aws --region $region ec2 create-tags --resources $vpcid --tags Key=Name,Value=vpc-${name}
 aws --region $region ec2 create-tags --resources $vpcid --tags Key=Purpose,Value="Deloping bash script"
 aws --region $region ec2 create-tags --resources $vpcid --tags Key=sr,Value="SR name or number"
 
@@ -27,20 +30,19 @@ aws --region $region ec2 create-tags --resources $vpcid --tags Key=sr,Value="SR 
 igwid=$(aws --region $region ec2  create-internet-gateway --output text | awk '{print $2}')
 
 
-# attahce igw to VPC and tag it
+# attach igw to VPC and tag it
 aws --region $region ec2 attach-internet-gateway --vpc-id $vpcid --internet-gateway-id $igwid
-aws --region $region ec2 create-tags --resources $igwid --tags Key=Name,Value=igw-$region
+aws --region $region ec2 create-tags --resources $igwid --tags Key=Name,Value=igw-$name
 
 
 # get route-table-id VPC auto creates and use for the public subnets to get out to internet
 rtbid=$(aws --region $region ec2  describe-route-tables --filters "Name=vpc-id,Values=$vpcid" --output text --query RouteTables[0].RouteTableId)
-#rtbid=$(aws --region $region ec2  create-route-table --vpc-id $vpcid --output text | grep rtb | awk '{print $2}')
 echo "route table id: $rtbid"
 
 
 # create route in route-table to igw and tag it
 aws --region $region ec2 create-route --route-table-id $rtbid --destination-cidr-block 0.0.0.0/0 --gateway-id $igwid 1>/dev/null
-aws --region $region ec2 create-tags --resources $rtbid --tags Key=Name,Value=pub-rtb-$region
+aws --region $region ec2 create-tags --resources $rtbid --tags Key=Name,Value=gw-dft-$name
 
 
 ## make subnets in each Availability Zone in VPC ##
@@ -56,34 +58,37 @@ third=0
 for az in $azlist ;
 do
 
-    # Make public default subnet for each az
+    # Make mgmt default subnet for each az
     ((third+=1));
     subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
 
 
-    #tag public subnet
+    #tag mgmt subnet
     subnetId=`echo $subnet_result | awk '{print $9}'`
-    echo "Public subnetId: $subnetId" 
-    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=pub-${az} 
+    echo "mgmt subnetId: $subnetId" 
+    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=mgmt-${az} 
 
-    # enable auto assing Public IP on subnet
+    # enable auto assing mgmt IP on subnet
     aws ec2 --region $region modify-subnet-attribute --subnet-id $subnetId --map-public-ip-on-launch
 
 
-    # accociate route table to igw with public subnet 
+    # accociate route table to igw with mgmt subnet 
     aws --region $region ec2 associate-route-table  --subnet-id $subnetId --route-table-id $rtbid 1>/dev/null
 
 
-    # make private subnet for first az
+    # make ext subnet for first az
     ((third+=1));
     subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
      
 
-    #tag private subnet
+    #tag ext subnet
     subnetId=`echo $subnet_result | awk '{print $9}'`
-    echo "private subnetId: $subnetId"
-    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=pri-${az}
+    echo "ext subnetId: $subnetId"
+    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=ext-${az}
     
+    # accociate route table to igw with ext subnet, but have not enabled public IP, this subnet is for Virtual Servers 
+    aws --region $region ec2 associate-route-table  --subnet-id $subnetId --route-table-id $rtbid 1>/dev/null
+
 done
 
 
@@ -93,7 +98,7 @@ echo "VPC security-group: $sgid"
 
 
 # describe and tag security-group
-aws --region $region ec2  create-tags --resources $sgid --tags Key=Name,Value=open-sg-${region}
+aws --region $region ec2  create-tags --resources $sgid --tags Key=Name,Value=open-sg-${name}
 
 # the sg group above is wide open. I have not decided if I should create one here that is more specic and make the one above deny all...
 

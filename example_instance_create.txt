@@ -1,0 +1,20 @@
+
+
+
+aws --region us-west-2 ec2 run-instances --image-id ami-81c27df9 --count 1 --instance-type m3.xlarge --key-name ech-oregon --security-group-ids sg-0352ce864ff81162a --subnet-id subnet-000e406a62862f267
+
+
+ hit difficurlty trying to attact already created ENI to the above. 
+
+If I run the above it will can create BIG-IP with a mgmt interface. 
+
+Maybe it be easier then to follow up and create the other 2 interfaces an configure them. 
+
+Here is example of creating ENI during run-instances
+
+aws --region us-west-2 ec2 run-instances --image-id ami-81c27df9 --count 1 --instance-type m3.xlarge --key-name ech-oregon --network-interfaces '[{"DeviceIndex":0,"NetworkInterfaceId":"eni-06f0ad3de841915d9"}]
+
+
+
+I foudn that on:
+https://github.com/aws/aws-cli/issues/387
