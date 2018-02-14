@@ -28,7 +28,7 @@ logger -p local0.notice "MCPD found by startup-aws-user-data-runner.sh, running 
 
 sleep 60
 
-tmsh modify auth user admin password Gooby1
+tmsh modify auth user admin password xxxxxx
 
 tmsh modify sys global-settings gui-setup disabled
 

@@ -27,7 +27,7 @@ if [ "$MCPD_RUNNING" -eq 1 ]; then
 sleep 60
 logger -p local0.notice "MCPD found by startup-aws-user-data-runner.sh, running commands"
 
-tmsh modify auth user admin password Gooby1
+tmsh modify auth user admin password xxxxxx
 tmsh modify sys global-settings gui-setup disabled
 
 # get IPs for interfaces
