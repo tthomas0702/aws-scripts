@@ -1,15 +1,74 @@
 #!/bin/bash
 
-# vpc-create.sh version 0.0.1
+# vpc-create.sh version 0.0.2
 
-# edit this to desired region
-# to get region list:
-# aws ec2 --region us-west-2 describe-regions --query "Regions[].RegionName" --output text 
+### SET DEFAULTS HERE ###
+name="test1-new"
+subnet_count="3"
 region="us-west-2"
+
+### END DEFAULTS ###
+
+
+# Proccess paramaters
+
+while [ $# -gt 0 ] ; do
+        case "$1" in
+        -h | --help)
+                printf "%s\n" "usage: $SCRIPT  "
+                printf "%s\n" "-n name of VPC to be created default "test1""
+                printf "%s\n" "-s number of subnets to create in each AZ [1,2, or 3] default 3"
+                printf "%s\n" "-r region to create VPC in default us-west-2 (Oregon)"
+                printf "%s\n" "-h --help"
+                printf "%s\n\n" "Most switches are optional if set in the defaults section of the script"
+                printf "%s\n" "Example:"
+                printf "%s\n\n" "$SCRIPT -n devVPC -s 3 -r us-east-1"
+
+        exit 0
+        ;;
+
+        -n ) shift
+                if [ $# -eq 0 ] ; then
+                printf "$SCRIPT:$LINENO: %s\n" "name for -n missing" >&2
+                exit 192
+                fi
+                name="$1"
+                ;;
+
+       -s ) shift
+                if [ $# -eq 0 ] ; then
+                printf "$SCRIPT:$LINENO: %s\n" "number of subnets for -s is missing" >&2
+                exit 192
+                fi
+                subnet_count="$1"
+                ;;
+
+       -r ) shift
+                if [ $# -eq 0 ] ; then
+                printf "$SCRIPT:$LINENO: %s\n"  "-r requires a region be provided" >&2
+                exit 192
+                fi
+                region="$1"
+                ;;
+
+        -* ) printf "$SCRIPT:$LINENO: %s\n"  "switch $1 not supported" >&2
+             exit 192
+             ;;
+
+        * ) printf "$SCRIPT:$LINENO: %s\n"  "extra argument or missing switch" >&2
+            exit 192
+            ;;
+
+
+        esac
+        shift
+done
+
+
+
+
 echo "*** Creating VPC in Region $region ***"
 
-# name of vpc
-name="test1"
 
 # create the basic VPC and save vpc-ip to a var
 vpcid_temp=$(aws ec2 --region $region create-vpc --cidr-block 10.0.0.0/16  --query "Vpc.VpcId")
@@ -65,7 +124,7 @@ do
 
     #tag mgmt subnet
     subnetId=`echo $subnet_result | awk '{print $9}'`
-    echo "mgmt subnetId: $subnetId" 
+    echo "mgmt AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24" 
     aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=mgmt-${az} 
 
     # enable auto assing mgmt IP on subnet
@@ -75,20 +134,35 @@ do
     # accociate route table to igw with mgmt subnet 
     aws --region $region ec2 associate-route-table  --subnet-id $subnetId --route-table-id $rtbid 1>/dev/null
 
-
-    # make ext subnet for first az
-    ((third+=1));
-    subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
+    # if -s 2 or 3 given
+    if [ "$subnet_count" = "2" ] || [ "$subnet_count" = "3" ]
+        then
+        # make ext subnet for each az
+        ((third+=1));
+        subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
      
 
-    #tag ext subnet
-    subnetId=`echo $subnet_result | awk '{print $9}'`
-    echo "ext subnetId: $subnetId"
-    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=ext-${az}
+        #tag ext subnet
+        subnetId=`echo $subnet_result | awk '{print $9}'`
+        echo "ext  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
+        aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=ext-${az}
     
-    # accociate route table to igw with ext subnet, but have not enabled public IP, this subnet is for Virtual Servers 
-    aws --region $region ec2 associate-route-table  --subnet-id $subnetId --route-table-id $rtbid 1>/dev/null
+        # accociate route table to igw with ext subnet, but have not enabled public IP, this subnet is for Virtual Servers 
+        aws --region $region ec2 associate-route-table  --subnet-id $subnetId --route-table-id $rtbid 1>/dev/null
+    fi
 
+    # if -s 3 given
+    if [ "$subnet_count" = "3" ]
+        then
+        # make int subnet for each az (no route-table association
+        ((third+=1));
+        subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
+
+        #tag int subnet
+        subnetId=`echo $subnet_result | awk '{print $9}'`
+        echo "int  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
+        aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=int-${az}
+    fi
 done
 
 
