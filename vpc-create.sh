@@ -171,11 +171,18 @@ sgid=$(aws ec2 --region $region  describe-security-groups --filter "Name=vpc-id,
 echo "VPC security-group: $sgid"
 
 
-# describe and tag security-group
+# describe and tag default security-group
 aws --region $region ec2  create-tags --resources $sgid --tags Key=Name,Value=open-sg-${name}
 
-# the sg group above is wide open. I have not decided if I should create one here that is more specic and make the one above deny all...
+
+# create mgmt security-group
+mgmt_sg_id=$(aws --region $region ec2 create-security-group --group-name Bigip-mgmt --description "Group for 22, 443, and 8443" --vpc-id $vpcid --output text)
+echo "big-ip-mgmt security-group: $mgmt_sg_id"
+# tag bigip mgmt security-group
+aws --region $region ec2 create-tags --resources $mgmt_sg_id --tags Key=Name,Value=bigip-mgmt
 
 
-
-
+# put inbound rules in bigip mgmt security-group
+aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 443 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 8443 --cidr 0.0.0.0/0
