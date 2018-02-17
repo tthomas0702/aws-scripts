@@ -1,0 +1,86 @@
+#!/bin/bash
+# ver 0.0.2
+# only configures ext-self-ip because console cannot launch instance with more than 2 interfaces
+chmod +w /config/startup
+
+echo '/var/tmp/startup-aws-user-data-runner.sh &' >> /config/startup
+
+echo '#!/bin/bash
+
+# if this has run before exit
+if [ -f /var/tmp/aws-startup-aws-user-data-finished ]; then
+    logger -p local0.notice "File /var/tmp/aws-startup-aws-user-data-finished found, exiting...remove startup-aws-user-data-runner.sh from /config/startup if not needed "
+    exit 0
+fi
+
+# Limit to 12 times in while-loop, ie. 12 x 60 secs sleep = 12 mins.
+MAX_LOOP=12
+
+while true
+do
+logger -p local0.notice "Checking to see if mcpd is running before running startup-aws-user-data-runner.sh"
+MCPD_RUNNING=`ps aux | grep "/usr/bin/mcpd" | grep -v grep | wc -l`
+
+if [ "$MCPD_RUNNING" -eq 1 ]; then
+# Here you could perform customized command(s) after MCPD is found running when the BIG-IP system starts up.
+# Customized startup command(s) can be added below this line.
+sleep 60
+logger -p local0.notice "MCPD found by startup-aws-user-data-runner.sh, running commands"
+
+tmsh modify auth user admin password FakePass
+tmsh modify sys global-settings gui-setup disabled
+
+# get IPs for interfaces
+# it is assumed that there is only one ip per interface
+# 1st	mgmt
+# 2nd	ext (self)
+# 3rd	int (self)
+# if the ip are not returned in order starting with lowest or if an interface has more than 1 IP this will fail
+# get list of macs for interfaces
+mac_list=$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/)
+ip_list=$(for m in $mac_list ; do ip=$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${m}local-ipv4s); echo $ip; done | sort)
+
+# make vlan 
+tmsh create net vlan ext interfaces add { 1.1 }
+
+### This is not working, the IP address order is not consistent, I need to find way to sort IP order
+# make ext-self
+addy=$(echo $ip_list | awk '\'{print \$2}\'')
+logger -p local0.notice "Creating ext VLAN self-ip ${addy}/255.255.255.0"
+tmsh create net self ext-self vlan ext  address ${addy}/255.255.255.0 allow-service default
+
+logger -p local0.notice "Finished with first time startup commands, saving config"
+tmsh save sys config
+
+# Customized startup command(s) should end above this line.
+
+# to prevent from running next time
+logger -p local0.notice "Finished running startup-aws-user-data-runner.sh"
+touch /var/tmp/aws-startup-aws-user-data-finished
+
+exit
+fi
+
+# If MCPD is not ready yet, script sleep 30 seconds and check again.
+sleep 60
+
+# Safety check not to run this script in background 
+if [ "$MAX_LOOP" -eq 1 ]; then
+logger -p local0.notice "mcpd not started in allowed time set in startup-aws-user-data-runner.sh script, aborting commands"
+exit
+fi
+((MAX_LOOP--))
+done' > /var/tmp/startup-aws-user-data-runner.sh
+
+
+chmod +x /var/tmp/startup-aws-user-data-runner.sh
+
+
+## To Do ##
+# int vlan and selfip
+# forwarding VS to server as NAT to internet
+
+
+
+
+

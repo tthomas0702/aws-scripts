@@ -1,10 +1,21 @@
 #!/bin/bash
 
+# ver 0.0.1
+
+# This is a script to create and BIG-IP instance in AWS.
+# The VPC must have three subnet configuredin the availability Zone that must be tagged using the following naming conevention:
+# mgmt-<Availability Zone> for the managment subnet
+# ext-<Availability Zone> for the ext network
+# int-<Availability Zone>
+# e.g. mgmt-us-west-2a
+#
+#
 
 ### SET DEFAULTS HERE ###
 name="noname"
 region="us-west-2"
-imageid="ami-81c27df9"  # BIG-IP v13 Good
+imageid="ami-81c27df9"  # F5 Networks Prelicensed Hourly BIGIP-13.1.0.2.0.0.6 - Good 5GBPS - Jan 16 2018 10_16_30AM
+inst_type="m3.xlarge"
 
 ### END DEFAULTS ###
 
@@ -20,6 +31,12 @@ while [ $# -gt 0 ] ; do
 		printf "%s\n" "-a availability zone"
 		printf "%s\n" "-d description"
 		printf "%s\n" "-s security-group id"
+		printf "%s\n" "-t instance type "
+		printf "%s\n" "-u user-data /path/file"
+		printf "%s\n" "-ls list security-group for region"
+		printf "%s\n" "-k key pair name, must already exist for account"
+		printf "%s\n" "-l list availabilty Zones for region and exit"
+		printf "%s\n" "-p list key pair names for region and exit"
                 printf "%s\n" "-h --help"
                 printf "%s\n" "This script requires a AZ with three subnets configured. "
 		printf "%s\n" "It will configure interface for mgmt, ext, int "
@@ -44,6 +61,59 @@ while [ $# -gt 0 ] ; do
                 fi
                 sgid="$1"
                 ;;
+
+       -u ) shift
+                if [ $# -eq 0 ] ; then
+                printf "$SCRIPT:$LINENO: %s\n" "-u user-data file location must be provided " >&2
+                exit 192
+                fi
+                userdata="$1"
+                ;;
+
+
+        -k ) shift
+                if [ $# -eq 0 ] ; then
+                printf "$SCRIPT:$LINENO: %s\n" "-k <key_name> missing" >&2
+                exit 192
+                fi
+                keyname="$1"
+                ;;
+
+       -t ) shift
+                if [ $# -eq 0 ] ; then
+                printf "$SCRIPT:$LINENO: %s\n" "-t instance type missing" >&2
+                exit 192
+                fi
+                inst_type="$1"
+                ;;
+
+
+
+       -l ) shift
+                if [ $# -eq 0 ] ; then
+                printf "%s\n" "Availability Zone for ${region}:" >&2
+		aws ec2 --region $region describe-availability-zones --query "AvailabilityZones[].ZoneName" --output text
+                exit 0
+                fi
+                ;;
+
+       -p ) shift
+                if [ $# -eq 0 ] ; then
+                printf "%s\n" "Key pairs for ${region}:" >&2
+		aws --region $region ec2 describe-key-pairs --query "KeyPairs[*].KeyName" --output table
+                exit 0
+                fi
+                ;;
+
+        -ls ) shift
+                if [ $# -eq 0 ] ; then
+                printf "%s\n" "security-groups for ${region}:" >&2
+		aws --region $region ec2 describe-security-groups --query "SecurityGroups[*].GroupName" --output table
+                exit 0
+                fi
+                ;;
+
+
 
        -r ) shift
                 if [ $# -eq 0 ] ; then
@@ -102,30 +172,34 @@ then
     exit 192
 fi
 
-# get subnet for a az
-#aws --region $region ec2 describe-subnets --filters "Name=tag:Name,Values=ext-us-west-2c"
-#aws --region $region ec2 describe-subnets --filters "Name=tag:Name,Values=mgmt-us-west-2c"
-
-#filter_val="mgmt-${az}"
-#aws --region $region ec2 describe-subnets --filters "Name=tag:Name,Values=${filter_val}" --query "Subnets[*].SubnetId" --output text
-
+if [ -z "$keyname" ]
+then
+    echo "-k existing key pair name required"
+    exit 192
+fi
 
 
+# function for tagging
+# usage:
+# tagit <resource ID> <key value> <Value value>
+tagit () {
+    aws --region $region ec2 create-tags --resources $1 --tags Key=$2,Value=$3
+}
 
-## create inteface for mgmt ##
+
+### Create interfaces that will be used by BIG-IP ###
+
 # get subnetId for mgmt in AZ
 filter_val="mgmt-${az}"
 subnetid=$(aws --region $region ec2 describe-subnets --filters "Name=tag:Name,Values=${filter_val}" --query "Subnets[*].SubnetId" --output text)
 
 # create mgmt interface
 mgmt_ifid=$(aws --region $region ec2 create-network-interface --subnet-id $subnetid --description "mgmt $az" --groups $sgid --query "NetworkInterface.NetworkInterfaceId")
-mgmt_ifid=`echo $mgmt_ifid | tr -d '"'`
+mgmt_ifid=`echo $mgmt_ifid | tr -d '"'`  # remove quote marks that end up in var
 echo "mgmt_ifid $mgmt_ifid"
-aws --region $region ec2 create-tags --resources $mgmt_ifid --tags Key=Name,Value=${name}-mgmt
+tagit $mgmt_ifid "Name" mgmt-${name}
 
 
-
-## create inteface for ext ##
 # get subnetId for ext in AZ
 filter_val="ext-${az}"
 subnetid=$(aws --region $region ec2 describe-subnets --filters "Name=tag:Name,Values=${filter_val}" --query "Subnets[*].SubnetId" --output text)
@@ -134,10 +208,9 @@ subnetid=$(aws --region $region ec2 describe-subnets --filters "Name=tag:Name,Va
 ext_ifid=$(aws --region $region ec2 create-network-interface --subnet-id $subnetid --description "ext $az" --groups $sgid --query "NetworkInterface.NetworkInterfaceId")
 ext_ifid=`echo $ext_ifid | tr -d '"'`
 echo "ext_ifid $ext_ifid"
-aws --region $region ec2 create-tags --resources $ext_ifid --tags Key=Name,Value=${name}-ext
+tagit $ext_ifid "Name" ext-${name}
 
 
-## create inteface for int ##
 # get subnetId for int in AZ
 filter_val="int-${az}"
 subnetid=$(aws --region $region ec2 describe-subnets --filters "Name=tag:Name,Values=${filter_val}" --query "Subnets[*].SubnetId" --output text)
@@ -146,18 +219,62 @@ subnetid=$(aws --region $region ec2 describe-subnets --filters "Name=tag:Name,Va
 int_ifid=$(aws --region $region ec2 create-network-interface --subnet-id $subnetid --description "int $az" --groups $sgid --query "NetworkInterface.NetworkInterfaceId")
 int_ifid=`echo $int_ifid | tr -d '"'`
 echo "int_ifid $int_ifid"
-aws --region $region ec2 create-tags --resources $int_ifid --tags Key=Name,Value=${name}-int
+tagit $int_ifid "Name" int-${name}
+
+
+### Next... create EIP, tagit and associtate with mgmt-ip
+# aws --region $region ec2 allocate-address
+
+# create EIP for mgmt
+eip_raw=$(aws --region $region ec2 allocate-address --output text)
+eip_id=`echo $eip_raw | cut -d ' ' -f1`
+eip_addr=`echo $eip_raw | cut -d ' ' -f3`
+tagit $eip_id Name mgmt-${name}
+echo -e "mgmt EIP:	$eip_addr"
+mgmt_eip=$eip_addr
+
+# associate EIP with mgmt interface
+mgmt_eip_alloc_id=$(aws --region $region ec2 associate-address --allocation-id $eip_id --network-interface-id $mgmt_ifid)
+mgmt_eip_map_raw=$(aws --region $region ec2 describe-addresses --filter "Name=network-interface-id,Values=$mgmt_ifid" --query "Addresses[*].[PublicIp, PrivateIpAddress]" --output text)
+echo -e "mgmt EIP `echo $mgmt_eip_map_raw | cut -d " " -f1` maps--to---> `echo $mgmt_eip_map_raw | cut -d " " -f2`"
+
+
+# create EIP for ext
+eip_raw=$(aws --region $region ec2 allocate-address --output text)
+eip_id=`echo $eip_raw | cut -d ' ' -f1`
+eip_addr=`echo $eip_raw | cut -d ' ' -f3`
+tagit $eip_id Name ext-${name}
+echo -e "ext EIP:      $eip_addr"
+ext_eip=$eip_addr
+
+# associate EIP with ext interface
+ext_eip_alloc_id=$(aws --region $region ec2 associate-address --allocation-id $eip_id --network-interface-id $ext_ifid)
+ext_eip_map_raw=$(aws --region $region ec2 describe-addresses --filter "Name=network-interface-id,Values=$ext_ifid" --query "Addresses[*].[PublicIp, PrivateIpAddress]" --output text)
+echo -e "ext EIP `echo $ext_eip_map_raw | cut -d " " -f1` maps--to---> `echo $ext_eip_map_raw | cut -d " " -f2`"
 
 
 
-### interfaces created .... now run-instance...
+### Create instance ###
+echo "Using AMI-ID: $imageid"
+echo "Instance type: $inst_type"
+echo "Key Pair: $keyname"
+
+if [ "$userdata" ]
+then
+    inst_id=$(aws --region $region ec2 run-instances --image-id $imageid --user-data file://${userdata} --count 1 --instance-type $inst_type --key-name $keyname --network-interfaces "[{\"DeviceIndex\":0,\"NetworkInterfaceId\":\"$mgmt_ifid\"}, {\"DeviceIndex\":1,\"NetworkInterfaceId\":\"$ext_ifid\"}, {\"DeviceIndex\":2,\"NetworkInterfaceId\":\"$int_ifid\"}]" --query "Instances[*].InstanceId" --output text)
+else
+    inst_id=$(aws --region $region ec2 run-instances --image-id $imageid --count 1 --instance-type $inst_type --key-name $keyname --network-interfaces "[{\"DeviceIndex\":0,\"NetworkInterfaceId\":\"$mgmt_ifid\"}, {\"DeviceIndex\":1,\"NetworkInterfaceId\":\"$ext_ifid\"}, {\"DeviceIndex\":2,\"NetworkInterfaceId\":\"$int_ifid\"}]" --query "Instances[*].InstanceId" --output text)
+fi
+
+tagit $inst_id "Name" ${name}-${az}
+echo "Created InstanceId: $inst_id"
+
+
+# print connection info
+echo -e "\nTo connect via ssh:"
+echo -e "ssh admin@${mgmt_eip} -i $keyname"
 
 
 
 
 
-
-
-
-
-#aws --region us-west-2 ec2 run-instances --image-id ami-81c27df9 --count 1 --instance-type m3.xlarge --key-name ech-oregon --network-interfaces '[{"DeviceIndex":0,"NetworkInterfaceId":"eni-0f61fba9bd8b986ff"}, {"DeviceIndex":1,"NetworkInterfaceId":"eni-0ff2f96180f884fc0"}, {"DeviceIndex":2,"NetworkInterfaceId":"eni-09c1955f398527ceb"}]'
