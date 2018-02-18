@@ -1,4 +1,8 @@
 #!/bin/bash
+# todo
+# enable DNS hostnames for the VPC
+# chang tag Name of default securoty-group created to not be "open..."
+
 
 # vpc-create.sh version 0.0.2
 
