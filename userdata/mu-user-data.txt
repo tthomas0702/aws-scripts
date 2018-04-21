@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# This is the user-data for mu server
+#
+
+# install EC2 Instance Metadata Query Tool 
+wget http://s3.amazonaws.com/ec2metadata/ec2-metadata -P /var/tmp/
+chmod +x /var/tmp/ec2-metadata
+
+amazon-linux-extras install nginx1.12
+
+systemctl start nginx.service
+
+yum -y update
+
+
+
+
