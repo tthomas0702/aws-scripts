@@ -1,0 +1,29 @@
+#!/bin/bash
+# For use with:
+# Amazon Linux 2 LTS Candidate 2 AMI (HVM), SSD Volume Type - ami-be4051de
+yum update -y
+yum install -y httpd php mysql-server php-mysqlnd
+service httpd start
+chkconfig httpd on
+mkdir -p /var/www/html
+groupadd www
+usermod -a -G www ec2-user
+chown -R root:www /var/www
+chmod 2775 /var/www
+find /var/www -type d -exec chmod 2775 {} +
+find /var/www -type f -exec chmod 0664 {} +
+echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php
+
+# EC2 Instance Metadata Query Tool
+wget http://s3.amazonaws.com/ec2metadata/ec2-metadata -P /var/tmp/
+
+# cleanup for copied AMIs
+#find -wholename /root/.*history -wholename /home/*/.history -exec rm -f {} \;
+
+# find / -name 'authorized_keys' -exec rm -f {} \;
+
+# rm -rf /var/lob/cloud/data/scripts/*
+
+
+
+

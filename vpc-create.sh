@@ -13,6 +13,9 @@ region="us-west-2"
 
 ### END DEFAULTS ###
 
+shopt -s -o nounset
+declare -rx SCRIPT=${0##*/}
+
 
 # Proccess paramaters
 
