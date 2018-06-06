@@ -1,10 +1,10 @@
 #!/bin/bash
 # todo
 # enable DNS hostnames for the VPC
-# chang tag Name of default securoty-group created to not be "open..."
+# change tag Name of default security-group created to not be "open..."
 
 
-# vpc-create.sh version 0.0.2
+# vpc-create.sh version 0.0.3
 
 ### SET DEFAULTS HERE ###
 name="test1-new"
@@ -135,7 +135,9 @@ do
     aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=mgmt-${az} 
 
     # enable auto assing mgmt IP on subnet
-    aws ec2 --region $region modify-subnet-attribute --subnet-id $subnetId --map-public-ip-on-launch
+    # decided that this does not work for auto scale 1nic setup to have public map
+    #aws ec2 --region $region modify-subnet-attribute --subnet-id $subnetId --map-public-ip-on-launch
+    aws ec2 --region $region modify-subnet-attribute --subnet-id $subnetId
 
 
     # accociate route table to igw with mgmt subnet 
