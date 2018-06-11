@@ -1,14 +1,14 @@
 #!/bin/bash
-# todo
-# enable DNS hostnames for the VPC
-# change tag Name of default security-group created to not be "open..."
+# 
+# 
+# for SSG 
 
 
-# vpc-create.sh version 0.0.4
+# version 0.0.2
 
 ### SET DEFAULTS HERE ###
-name="test1-new"
-subnet_count="3"
+name="ssg-noname"
+subnet_count="2"
 region="us-west-2"
 
 ### END DEFAULTS ###
@@ -23,13 +23,13 @@ while [ $# -gt 0 ] ; do
         case "$1" in
         -h | --help)
                 printf "%s\n" "usage: $SCRIPT  "
-                printf "%s\n" "-n name of VPC to be created default "test1""
-                printf "%s\n" "-s number of subnets to create in each AZ [1,2, or 3] default 3"
+                printf "%s\n" "-n name of VPC to be created default "ssg-noname""
+                printf "%s\n" "-s number of subnets to create in each AZ [1 or 2] default 2"
                 printf "%s\n" "-r region to create VPC in default us-west-2 (Oregon)"
                 printf "%s\n" "-h --help"
                 printf "%s\n\n" "Most switches are optional if set in the defaults section of the script"
                 printf "%s\n" "Example:"
-                printf "%s\n\n" "$SCRIPT -n devVPC -s 3 -r us-east-1"
+                printf "%s\n\n" "$SCRIPT -n devVPC -s 2 -r us-east-1"
 
         exit 0
         ;;
@@ -118,59 +118,55 @@ declare azlist=$(aws ec2 --region $region describe-availability-zones --output t
 
 # create var for third octect of IP network
 third=0
-
+declare -a pubSubnets
+declare -a privSubnets
 
 # loop through AZ list to create subnets
 for az in $azlist ;
 do
 
-    # Make mgmt default subnet for each az
+    # Make public default subnet for each az
     ((third+=1));
     subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
 
 
-    #tag mgmt subnet
+    #tag public subnet
     subnetId=`echo $subnet_result | awk '{print $9}'`
-    echo "mgmt AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24" 
-    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=mgmt-${az} 
+    echo "public AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24" 
+    aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=public-${az} 
+
+
+    # append subnetId to PubSubnets array
+    pubSubnets+=("$subnetId")
 
     # enable auto assing mgmt IP on subnet
     # DISABLED
     #aws ec2 --region $region modify-subnet-attribute --subnet-id $subnetId --map-public-ip-on-launch
 
 
-    # accociate route table to igw with mgmt subnet 
+    # accociate route table to igw with public subnet 
     aws --region $region ec2 associate-route-table  --subnet-id $subnetId --route-table-id $rtbid 1>/dev/null
 
-    # if -s 2 or 3 given
-    if [ "$subnet_count" = "2" ] || [ "$subnet_count" = "3" ]
+    # if -s 2 
+    if [ "$subnet_count" = "2" ] 
         then
-        # make ext subnet for each az
+        # make private subnet for each az
         ((third+=1));
         subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
-     
+        
+        # append subnetId to privSubnets array
+        privSubnets+=("$subnetId")
+	
 
-        #tag ext subnet
+        #tag private subnet
         subnetId=`echo $subnet_result | awk '{print $9}'`
-        echo "ext  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
-        aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=ext-${az}
+        echo "private  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
+        aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=private-${az}
     
-        # accociate route table to igw with ext subnet, but have not enabled public IP, this subnet is for Virtual Servers 
-        aws --region $region ec2 associate-route-table  --subnet-id $subnetId --route-table-id $rtbid 1>/dev/null
+        # ommenting out to not associate with route-table
+        #aws --region $region ec2 associate-route-table  --subnet-id $subnetId --route-table-id $rtbid 1>/dev/null
     fi
 
-    # if -s 3 given
-    if [ "$subnet_count" = "3" ]
-        then
-        # make int subnet for each az (no route-table association
-        ((third+=1));
-        subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
-
-        #tag int subnet
-        subnetId=`echo $subnet_result | awk '{print $9}'`
-        echo "int  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
-        aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=int-${az}
-    fi
 done
 
 
@@ -194,3 +190,55 @@ aws --region $region ec2 create-tags --resources $mgmt_sg_id --tags Key=Name,Val
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 22 --cidr 0.0.0.0/0
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 443 --cidr 0.0.0.0/0
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 8443 --cidr 0.0.0.0/0
+
+
+# create ELB sg
+elb_sg_id=$(aws --region $region ec2 create-security-group --group-name elb --description "ELB for 22, 80, and 443" --vpc-id $vpcid --output text)
+echo "ELB  security-group: $elb_sg_id"
+aws --region $region ec2 create-tags --resources $elb_sg_id --tags Key=Name,Value=ELB-ssg
+
+# put inbound rules in bigip elb security-group
+aws --region $region ec2 authorize-security-group-ingress --group-id $elb_sg_id --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $elb_sg_id --protocol tcp --port 443 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $elb_sg_id --protocol tcp --port 80 --cidr 0.0.0.0/0
+
+
+# create ELB
+echo "Creating ELB ${name}-elb, you will need to remove this befoe you can delete the VPC"
+echo "    aws --region $region elb delete-load-balancer --load-balancer-name ssg-elb"
+elb_create=`aws --region $region elb create-load-balancer --load-balancer-name ssg-elb --listeners "Protocol=HTTP,LoadBalancerPort=80,InstanceProtocol=HTTP,InstancePort=80" --subnets ${pubSubnets[@]} --security-groups $elb_sg_id`
+
+# configure health check
+health_check=`aws --region $region elb configure-health-check --load-balancer-name ssg-elb --health-check Target=TCP:22,Interval=30,UnhealthyThreshold=2,HealthyThreshold=2,Timeout=3`
+
+
+# remove the listners
+aws --region $region elb delete-load-balancer-listeners --load-balancer-name ssg-elb --load-balancer-ports 80
+
+
+
+# create NAT GW for private subnets
+# create EIP
+nat_eip_id=`aws --region $region ec2 allocate-address --output text --query AllocationId`
+echo " creating EIP for NAT GW: $nat_eip_id"
+aws --region $region ec2 create-tags --resources $nat_eip_id --tags Key=Name,Value=NAT-GW
+echo " EIP need to be deleted before EIP can be deleted"
+echo "    aws --region $region ec2 release-address --allocation-id $nat_eip_id"
+
+
+# create NAT GW
+nat_id=`aws --region $region ec2 create-nat-gateway --subnet-id $pubSubnets --allocation-id $nat_eip_id --output text --query "NatGateway.NatGatewayId"`
+echo " created NAT GW $nat_id"
+echo " to remove:"
+echo "    aws --region $region ec2 delete-nat-gateway --nat-gateway-id $nat_id"
+
+
+# next create route table for private subnet to point to NAT GW $nat_id 
+
+
+
+
+# then ... ASG stuff for web server
+
+
+
