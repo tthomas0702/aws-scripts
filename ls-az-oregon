@@ -1,5 +1,0 @@
-#!/bin/bash
-
-aws ec2 --region us-west-2 describe-availability-zones --query "AvailabilityZones[].ZoneName"
-
-# I need to make a better one that takes arg of Region and then use --filter and --query to get result
