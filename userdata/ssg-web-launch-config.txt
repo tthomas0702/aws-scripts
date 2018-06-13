@@ -1,0 +1,12 @@
+#!/bin/bash
+# 
+# this is the user data I am using for ngix web servers
+
+yum -y update
+yum install -y  nginx php70-fpm
+echo "<?php phpinfo(); ?>" > /usr/share/nginx/html/index.php
+for i in php-fpm nginx; do service $i start; done
+
+# need to make 
+chkconfig nginx on
+chkconfig php-fpm on
