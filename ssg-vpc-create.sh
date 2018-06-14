@@ -1,10 +1,13 @@
 #!/bin/bash
 # 
 # 
-# for SSG 
+# 
+# This script will setup a VPC setup that can be connected to by a BIG-IQ for deployment of SSG and applications.
+# It will create a VPC, ELB, security groups, and IQW for Public Subnet. A NAT GW for the Private subnets. 
+# A auto-scaling group that will start amz linux web servers to be used as pool member of the BIG-IPs in SSG. 
 
 
-# version 0.0.6
+# version 0.0.7
 
 shopt -s -o nounset
 declare -rx SCRIPT=${0##*/}
@@ -15,9 +18,9 @@ name="ssg-noname"
 subnet_count="2"
 region=""
 key_pair=""
-# web tier ami 
-# Amazon Linux AMI 2018.03.0 (HVM), SSD Volume Type - ami-922914f7
-web_ami="ami-922914f7"
+# web tier amiId linux name , will find amiId for this in current region
+linux_image_name="Name=name,Values=amzn-ami-hvm-2018.03.0.20180508-x86_64-gp2"
+# instance type for web servers
 instance_type="t2.micro"
 
 ### END DEFAULTS ###
@@ -32,9 +35,11 @@ while [ $# -gt 0 ] ; do
                 printf "%s\n" "-n name of VPC to be created default "ssg-noname""
                 printf "%s\n" "-s number of subnets to create in each AZ [1 or 2] default 2"
                 printf "%s\n" "-r region to create VPC in default us-west-2 (Oregon)"
-		printf "%s\n" "-k key pair name (requred)"
+		printf "%s\n" "-k key pair name in the region being used (requred)"
+		printf "%s\n" "    try:    aws --region <region> ec2 describe-key-pairs --query "KeyPairs[*].KeyName""
                 printf "%s\n" "-h --help"
                 printf "%s\n\n" "Most switches are optional if set in the defaults section of the script"
+		printf "%s\n" "Save the output of runnign the command to help clean up the VPC for deletion"
                 printf "%s\n" "Example:"
                 printf "%s\n\n" "$SCRIPT -n devVPC -s 2 -r us-east-1"
 
@@ -94,8 +99,11 @@ if [ -z "$key_pair" ]; then
     exit 1
 fi
 
-echo "*** Creating VPC in Region $region ***"
+# web tier find amiId
+web_ami=$(aws --region $region ec2 describe-images --filters $linux_image_name --output text --query "Images[*].ImageId")
 
+
+echo "*** Creating VPC in Region $region ***"
 
 # create the basic VPC and save vpc-ip to a var
 vpcid_temp=$(aws ec2 --region $region create-vpc --cidr-block 10.0.0.0/16  --query "Vpc.VpcId")
@@ -266,13 +274,13 @@ aws --region $region elb delete-load-balancer-listeners --load-balancer-name ssg
 
 
 # create EIP for NAT GW for private subnets
-nat_eip_id=`aws --region $region ec2 allocate-address --output text --query AllocationId`
+nat_eip_id=$(aws --region $region ec2 allocate-address --output text --query AllocationId)
 echo "creating EIP for NAT GW: $nat_eip_id"
 aws --region $region ec2 create-tags --resources $nat_eip_id --tags Key=Name,Value=NAT-GW
 
 
 # create NAT GW
-nat_id=`aws --region $region ec2 create-nat-gateway --subnet-id $pubSubnets --allocation-id $nat_eip_id --output text --query "NatGateway.NatGatewayId"`
+nat_id=$(aws --region $region ec2 create-nat-gateway --subnet-id $pubSubnets --allocation-id $nat_eip_id --output text --query "NatGateway.NatGatewayId")
 echo "created NAT GW $nat_id"
 
 # pausing to give NAT GW a little time to spin up
@@ -290,7 +298,7 @@ echo "adding 0.0.0.0/0 route to Privae subnet route table to point via NAT GW $n
 #create launch config
 aws --region $region autoscaling create-launch-configuration --launch-configuration-name ${name}-launch-config --key-name $key_pair --image-id $web_ami --instance-type $instance_type --user-data file://userdata/ssg-web-launch-config.txt --no-associate-public-ip-address --security-groups $web_sg_id
 
-launch_conf_name=`aws --region $region autoscaling describe-launch-configurations --launch-configuration-names ${name}-launch-config --query "LaunchConfigurations[*].LaunchConfigurationName" --output text`
+launch_conf_name=$(aws --region $region autoscaling describe-launch-configurations --launch-configuration-names ${name}-launch-config --query "LaunchConfigurations[*].LaunchConfigurationName" --output text)
 
 echo "Created Launch Config: $launch_conf_name"
 
