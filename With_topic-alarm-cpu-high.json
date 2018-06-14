@@ -1,0 +1,24 @@
+{
+    "AlarmName": "test-cpu-high", 
+    "AlarmDescription": "using skeleton", 
+    "ActionsEnabled": true, 
+    "AlarmActions": [
+        "arn:aws:sns:us-east-2:735933083502:to-tim"
+    ], 
+    "MetricName": "CPUUtilization", 
+    "Namespace": "AWS/EC2", 
+    "Statistic": "Average", 
+    "Dimensions": [
+        {
+            "Name": "AutoScalingGroupName", 
+            "Value": "wed1-asg"
+        }
+    ], 
+    "Period": 300, 
+    "Unit": "Percent", 
+    "EvaluationPeriods": 5, 
+    "DatapointsToAlarm": 5, 
+    "Threshold": 80.0, 
+    "ComparisonOperator": "GreaterThanOrEqualToThreshold", 
+    "TreatMissingData": "missing" 
+}

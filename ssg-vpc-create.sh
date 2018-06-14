@@ -4,7 +4,7 @@
 # for SSG 
 
 
-# version 0.0.4
+# version 0.0.6
 
 shopt -s -o nounset
 declare -rx SCRIPT=${0##*/}
@@ -182,14 +182,16 @@ do
         ((third+=1));
         subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
         
-        # append subnetId to privSubnets array
-        privSubnets+=("$subnetId")
-	
 
         #tag private subnet
         subnetId=`echo $subnet_result | awk '{print $9}'`
         echo "private  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
         aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=private-${az}
+
+
+	# append subnetId to privSubnets array
+        privSubnets+=("$subnetId")
+
     
         # associate private subnet with private route table
         aws --region $region ec2 associate-route-table  --subnet-id $subnetId --route-table-id $priv_route_table_id 1>/dev/null
@@ -292,19 +294,42 @@ launch_conf_name=`aws --region $region autoscaling describe-launch-configuration
 
 echo "Created Launch Config: $launch_conf_name"
 
-# create ASG
+##  create ASG ##
+
 # create csv list for of private subnets for ASG
 csv_subnets=$(echo ${privSubnets[@]} | tr ' ' ',')
 
-aws --region $region autoscaling create-auto-scaling-group --auto-scaling-group-name ${name}-asg --launch-configuration-name $launch_conf_name  --min-size 1 --max-size 3 --desired-capacity 1 --default-cooldown 300 --vpc-zone-identifier $csv_subnets
+aws --region $region autoscaling create-auto-scaling-group --auto-scaling-group-name ${name}-asg --launch-configuration-name $launch_conf_name  --min-size 1 --max-size 3 --desired-capacity 1 --default-cooldown 300 --vpc-zone-identifier $csv_subnets --tags "Key=Name,Value=${name}-web"
 
 asg_name=$(aws --region $region autoscaling describe-auto-scaling-groups --auto-scaling-group-names ${name}-asg --output text --query 'AutoScalingGroups[*].AutoScalingGroupName')
 echo "Created ASG $asg_name"
 
 
-## NEED to create scaling policies in the group aboube ##
-## need to tag instances launced
-## need work...
+
+## create scaling policies and save ARN to give during alarm creation
+
+scale_out_policy_arn=$(aws --region $region autoscaling put-scaling-policy --policy-name ${name}-scale-out --auto-scaling-group-name ${name}-asg --scaling-adjustment 1 --adjustment-type ChangeInCapacity --cooldown 300 --output text --query PolicyARN)
+
+scale_in_policy_arn=$(aws --region $region autoscaling put-scaling-policy --policy-name ${name}-scale-in --auto-scaling-group-name ${name}-asg --scaling-adjustment -1 --adjustment-type ChangeInCapacity --cooldown 300 --output text --query PolicyARN)
+
+# create alarm for scaling policies
+# High CPU 
+aws --region $region cloudwatch put-metric-alarm --alarm-name ${name}-CPU-high --alarm-description "Alarm when CPU exceeds 80 percent for 10 minutes" --metric-name CPUUtilization --namespace AWS/EC2 --statistic Average --period 300 --threshold 80 --comparison-operator GreaterThanThreshold  --dimensions "Name=AutoScalingGroupName,Value=${asg_name}" --evaluation-periods 2 --unit Percent --actions-enabled --alarm-actions $scale_out_policy_arn
+
+echo "created alarm ${name}-CPU-high"
+#aws --region $region cloudwatch describe-alarms --alarm-names ${name}-CPU-high
+
+
+# Low CPU
+aws --region $region cloudwatch put-metric-alarm --alarm-name ${name}-CPU-low --alarm-description "Alarm when CPU below 20% percent for 10 minutes" --metric-name CPUUtilization --namespace AWS/EC2 --statistic Average --period 300 --threshold 20 --comparison-operator LessThanOrEqualToThreshold  --dimensions "Name=AutoScalingGroupName,Value=${asg_name}" --evaluation-periods 2 --unit Percent --actions-enabled --alarm-actions $scale_in_policy_arn
+
+echo "created alarm ${name}-CPU-low"
+#aws --region $region cloudwatch describe-alarms --alarm-names ${name}-CPU-low
+
+
+## to do ##
+# this currently only works in us-east-2 because I have the ami in the lauch config is hard coded and not available in other regions
+# need to find dynamic means to get ami-id for each region
 
 
 # Pre-DELETE VPC listx
@@ -312,6 +337,9 @@ echo " *** Before deleting VPC you will need to remove ***"
 echo "aws --region $region elb delete-load-balancer --load-balancer-name ssg-elb"
 echo "aws --region $region ec2 delete-nat-gateway --nat-gateway-id $nat_id"
 echo "sleep 30"
-echo "aws --region $region ec2 release-address --allocation-id $nat_eip_id"
 echo "aws --region $region autoscaling delete-auto-scaling-group --auto-scaling-group-name ${name}-asg"
 echo "aws --region $region autoscaling delete-launch-configuration --launch-configuration-name $launch_conf_name"
+echo "aws --region $region cloudwatch delete-alarms --alarm-names ${name}-CPU-low"
+echo "aws --region $region cloudwatch delete-alarms --alarm-names ${name}-CPU-high"
+echo "aws --region $region ec2 release-address --allocation-id $nat_eip_id"
+
