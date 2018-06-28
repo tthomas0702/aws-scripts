@@ -7,7 +7,7 @@
 # A auto-scaling group that will start amz linux web servers to be used as pool member of the BIG-IPs in SSG. 
 
 
-# version 0.0.7
+# version 0.0.8
 
 shopt -s -o nounset
 declare -rx SCRIPT=${0##*/}
@@ -227,6 +227,25 @@ aws --region $region ec2 create-tags --resources $mgmt_sg_id --tags Key=Name,Val
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 22 --cidr 0.0.0.0/0
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 443 --cidr 0.0.0.0/0
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 8443 --cidr 0.0.0.0/0
+
+
+# create bigiq security-group
+bigiq_sg_id=$(aws --region $region ec2 create-security-group --group-name bigiq --description "Group for BIG-IQs" --vpc-id $vpcid --output text)
+echo "bigiq security-group: $bigiq_sg_id"
+# tag bigiq security-group
+aws --region $region ec2 create-tags --resources $bigiq_sg_id --tags Key=Name,Value=bigiq
+
+# put inbound rules in bigiq security-group
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 443 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 8514 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 29015 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 27017 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 9997 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 9300 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 28015 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 8008 --cidr 0.0.0.0/0
+
 
 
 # create web-servers security-group
