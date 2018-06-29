@@ -231,7 +231,7 @@ aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id
 
 # create bigiq security-group
 bigiq_sg_id=$(aws --region $region ec2 create-security-group --group-name bigiq --description "Group for BIG-IQs" --vpc-id $vpcid --output text)
-echo "bigiq security-group: $bigiq_sg_id"
+echo "bigiq security-group:        $bigiq_sg_id"
 # tag bigiq security-group
 aws --region $region ec2 create-tags --resources $bigiq_sg_id --tags Key=Name,Value=bigiq
 
