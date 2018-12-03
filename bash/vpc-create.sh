@@ -1,7 +1,12 @@
 #!/bin/bash
 
 
-# vpc-create.sh version 0.0.6
+# vpc-create.sh version 0.0.7
+# This works with version of aws-cli found on fedora 28
+# aws-cli/1.14.32 Python/2.7.15 Linux/4.18.16-200.fc28.x86_64 botocore/1.8.36
+#
+# it fails on version default for Ubuntu 16.0.4 LTS
+# aws-cli/1.11.13 Python/3.5.2 Linux/4.15.0-39-generic botocore/1.4.70
 
 ### SET DEFAULTS HERE ###
 name="test1-new"
@@ -69,6 +74,13 @@ while [ $# -gt 0 ] ; do
 done
 
 
+# Functions #
+
+# get subnetId from the output when creating a subnet
+get_subnet_ID () {
+    echo $subnet_result | awk '{print $9}'
+}
+
 
 
 echo "*** Creating VPC in Region $region ***"
@@ -127,7 +139,7 @@ do
 
 
     #tag mgmt subnet
-    subnetId=`echo $subnet_result | awk '{print $9}'`
+    subnetId=`get_subnet_ID`
     echo "mgmt AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24" 
     aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=mgmt-${az} 
 
@@ -148,7 +160,7 @@ do
      
 
         #tag ext subnet
-        subnetId=`echo $subnet_result | awk '{print $9}'`
+        subnetId=`get_subnet_ID`
         echo "ext  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
         aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=ext-${az}
     
@@ -164,7 +176,7 @@ do
         subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
 
         #tag int subnet
-        subnetId=`echo $subnet_result | awk '{print $9}'`
+        subnetId=`get_subnet_ID`
         echo "int  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
         aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=int-${az}
     fi

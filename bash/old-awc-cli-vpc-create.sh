@@ -1,13 +1,9 @@
 #!/bin/bash
-# 
-# 
-# It was failing ti get the subnetId because I was awking for the 9th element but something changed
-# to fix I had to get the 6th element
-# I replaced with a function "get_subnet_ID ()" that work for now. 
-# need to merge the cahnge into the main script
-
 
 # vpc-create.sh version 0.0.4
+#
+# This works with older version of aws-cli that comes with Ubuntu 16.0.4 LTS
+# aws-cli/1.11.13 Python/3.5.2 Linux/4.15.0-39-generic botocore/1.4.70
 
 ### SET DEFAULTS HERE ###
 name="test1-new"
