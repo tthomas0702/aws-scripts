@@ -1,10 +1,7 @@
 #!/bin/bash
-# todo
-# enable DNS hostnames for the VPC
-# change tag Name of default security-group created to not be "open..."
 
 
-# vpc-create.sh version 0.0.4
+# vpc-create.sh version 0.0.6
 
 ### SET DEFAULTS HERE ###
 name="test1-new"
@@ -180,7 +177,7 @@ echo "VPC security-group: $sgid"
 
 
 # describe and tag default security-group
-aws --region $region ec2  create-tags --resources $sgid --tags Key=Name,Value=open-sg-${name}
+aws --region $region ec2  create-tags --resources $sgid --tags Key=Name,Value=auto-created-default-sg-${name}
 
 
 # create mgmt security-group
@@ -194,3 +191,8 @@ aws --region $region ec2 create-tags --resources $mgmt_sg_id --tags Key=Name,Val
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 22 --cidr 0.0.0.0/0
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 443 --cidr 0.0.0.0/0
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 8443 --cidr 0.0.0.0/0
+
+# enable --enable-dns-hostnames for VPC
+echo "Setting --enable-dns-hostname for VPC $vpcid"
+aws ec2 modify-vpc-attribute --vpc-id $vpcid  --enable-dns-hostnames
+

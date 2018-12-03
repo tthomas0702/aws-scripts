@@ -1,5 +1,5 @@
 #!/bin/bash
-# ver 0.0.1
+# ver 0.0.2
 # only configures ext-self-ip because console cannot launch instance with more than 2 interfaces
 chmod +w /config/startup
 

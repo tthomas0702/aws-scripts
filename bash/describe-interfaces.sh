@@ -44,4 +44,4 @@ done
 
 
 
-aws --region $region ec2 describe-network-interfaces --query "NetworkInterfaces[].{ID:NetworkInterfaceId,AZ:AvailabilityZone,DSC:Description,SubID:SubnetId,IP:PrivateIpAddress }"
+aws --region $region ec2 describe-network-interfaces --query "NetworkInterfaces[].{VM:Attachment.InstanceId, ID:NetworkInterfaceId,AZ:AvailabilityZone,DSC:Description,SubID:SubnetId,IP:PrivateIpAddresses[*].PrivateIpAddress }"
