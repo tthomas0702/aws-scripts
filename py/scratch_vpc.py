@@ -5,8 +5,8 @@ using git hub examples
 
 https://gist.github.com/nguyendv/8cfd92fc8ed32ebb78e366f44c2daea6
 
-Access key ID:      AKIAJTS6TMIUS64PGL2A
-Secret access key:  hFpcVi6XBvUNbK2iYJMzvoXIucGIPoFeYL2Z2FVS
+Access key ID:      
+Secret access key:  
 
 """
 
@@ -15,8 +15,8 @@ from pprint import pprint
 import boto3
 
 
-AWS_ACCESS_KEY_ID = 'AKIAJTS6TMIUS64PGL2A'
-AWS_SECRET_ACCESS_KEY = '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'
+AWS_ACCESS_KEY_ID = 'xxxxxxxxxx'
+AWS_SECRET_ACCESS_KEY = 'xxxxxxxxxxxxxxxxx'
 
 
 EC2 = boto3.resource('ec2',
