@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-# vpc-create.sh version 0.0.7
+# vpc-create.sh version 0.0.8
 # This works with version of aws-cli found on fedora 28
 # aws-cli/1.14.32 Python/2.7.15 Linux/4.18.16-200.fc28.x86_64 botocore/1.8.36
 #
@@ -77,8 +77,10 @@ done
 # Functions #
 
 # get subnetId from the output when creating a subnet
+# I have had trouble with thsi changing and had to adjust 12-28-2018 from $9 to $12
+# it also may have to do with the version of aws-cli and boto used by it
 get_subnet_ID () {
-    echo $subnet_result | awk '{print $9}'
+    echo $subnet_result | awk '{print $12}'
 }
 
 
@@ -136,7 +138,6 @@ do
     # Make mgmt default subnet for each az
     ((third+=1));
     subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
-
 
     #tag mgmt subnet
     subnetId=`get_subnet_ID`
