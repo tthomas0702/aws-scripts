@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-# vpc-create.sh version 0.0.8
+# vpc-create.sh version 0.0.9
 # This works with version of aws-cli found on fedora 28
 # aws-cli/1.14.32 Python/2.7.15 Linux/4.18.16-200.fc28.x86_64 botocore/1.8.36
 #
@@ -77,13 +77,18 @@ done
 # Functions #
 
 # get subnetId from the output when creating a subnet
-# I have had trouble with thsi changing and had to adjust 12-28-2018 from $9 to $12
+# I have had trouble with this changing and had to adjust 12-28-2018 from $9 to $12
 # it also may have to do with the version of aws-cli and boto used by it
 get_subnet_ID () {
     echo $subnet_result | awk '{print $12}'
 }
 
-
+# function tag_resource 
+# aws --region $region ec2 create-tags --resources $vpcid --tags Key=Name,Value=vpc-${name}
+# $1 resources, $2 Key, $3 Value
+tag_resource () {
+    aws --region $region ec2 create-tags --resources "$1" --tags Key="$2",Value="$3"
+}
 
 echo "*** Creating VPC in Region $region ***"
 
@@ -98,9 +103,9 @@ echo "Created VPC $vpcid"
 
 
 # give VPC Name tag
-aws --region $region ec2 create-tags --resources $vpcid --tags Key=Name,Value=vpc-${name}
-aws --region $region ec2 create-tags --resources $vpcid --tags Key=Purpose,Value="Deloping bash script"
-aws --region $region ec2 create-tags --resources $vpcid --tags Key=sr,Value="SR name or number"
+tag_resource $vpcid Name vpc-${name}
+tag_resource $vpcid Purpose "Devloping bash script"
+tag_resource $vpcid sr "SR name or number"
 
 
 # create igw for vpc
@@ -207,5 +212,5 @@ aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id
 
 # enable --enable-dns-hostnames for VPC
 echo "Setting --enable-dns-hostname for VPC $vpcid"
-aws ec2 modify-vpc-attribute --vpc-id $vpcid  --enable-dns-hostnames
+aws --region $region ec2 modify-vpc-attribute --vpc-id $vpcid  --enable-dns-hostnames
 
