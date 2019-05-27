@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-# vpc-create.sh version 0.0.9
+# vpc-create.sh version 0.1.0
 # This works with version of aws-cli found on fedora 28
 # aws-cli/1.14.32 Python/2.7.15 Linux/4.18.16-200.fc28.x86_64 botocore/1.8.36
 #
@@ -12,6 +12,7 @@
 name="test1-new"
 subnet_count="3"
 region="us-west-2"
+network_prefix="10.0."
 
 ### END DEFAULTS ###
 
@@ -51,6 +52,16 @@ while [ $# -gt 0 ] ; do
                 fi
                 subnet_count="$1"
                 ;;
+
+        -p ) shift
+                if [ $# -eq 0 ] ; then
+                printf "$SCRIPT:$LINENO: %s\n" "The first two octets of network with . appened; eg 10.99." >&2
+                exit 192
+                fi
+                network_prefix="$1"
+                ;;
+
+
 
        -r ) shift
                 if [ $# -eq 0 ] ; then
@@ -94,7 +105,7 @@ echo "*** Creating VPC in Region $region ***"
 
 
 # create the basic VPC and save vpc-ip to a var
-vpcid_temp=$(aws ec2 --region $region create-vpc --cidr-block 10.0.0.0/16  --query "Vpc.VpcId")
+vpcid_temp=$(aws ec2 --region $region create-vpc --cidr-block ${network_prefix}0.0/16  --query "Vpc.VpcId")
 # need to remove " from vpcid var
 vpcid="${vpcid_temp%\"}"
 vpcid="${vpcid#\"}"
@@ -142,11 +153,11 @@ do
 
     # Make mgmt default subnet for each az
     ((third+=1));
-    subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
+    subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block ${network_prefix}${third}.0/24 --availability-zone $az) ;
 
     #tag mgmt subnet
     subnetId=`get_subnet_ID`
-    echo "mgmt AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24" 
+    echo "mgmt AZ: $az subnetId: $subnetId net: ${network_prefix}${third}.0/24" 
     aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=mgmt-${az} 
 
     # enable auto assing mgmt IP on subnet
@@ -162,12 +173,12 @@ do
         then
         # make ext subnet for each az
         ((third+=1));
-        subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
+        subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block ${network_prefix}${third}.0/24 --availability-zone $az) ;
      
 
         #tag ext subnet
         subnetId=`get_subnet_ID`
-        echo "ext  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
+        echo "ext  AZ: $az subnetId: $subnetId net: ${network_prefix}${third}.0/24"
         aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=ext-${az}
     
         # accociate route table to igw with ext subnet, but have not enabled public IP, this subnet is for Virtual Servers 
@@ -179,11 +190,11 @@ do
         then
         # make int subnet for each az (no route-table association
         ((third+=1));
-        subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
+        subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block ${network_prefix}${third}.0/24 --availability-zone $az) ;
 
         #tag int subnet
         subnetId=`get_subnet_ID`
-        echo "int  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
+        echo "int  AZ: $az subnetId: $subnetId net: ${network_prefix}${third}.0/24"
         aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=int-${az}
     fi
 done
@@ -209,6 +220,25 @@ aws --region $region ec2 create-tags --resources $mgmt_sg_id --tags Key=Name,Val
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 22 --cidr 0.0.0.0/0
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 443 --cidr 0.0.0.0/0
 aws --region $region ec2 authorize-security-group-ingress --group-id $mgmt_sg_id --protocol tcp --port 8443 --cidr 0.0.0.0/0
+
+
+# create bigiq security-group
+bigiq_sg_id=$(aws --region $region ec2 create-security-group --group-name bigiq --description "Group for BIG-IQs" --vpc-id $vpcid --output text)
+echo "bigiq security-group:        $bigiq_sg_id"
+# tag bigiq security-group
+aws --region $region ec2 create-tags --resources $bigiq_sg_id --tags Key=Name,Value=bigiq
+
+# put inbound rules in bigiq security-group
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 443 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 8514 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 29015 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 27017 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 9997 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 9300 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 28015 --cidr 0.0.0.0/0
+aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_id --protocol tcp --port 8008 --cidr 0.0.0.0/0
+
 
 # enable --enable-dns-hostnames for VPC
 echo "Setting --enable-dns-hostname for VPC $vpcid"
