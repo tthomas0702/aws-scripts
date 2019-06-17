@@ -79,21 +79,23 @@ def cmd_args():
         print(parsed_arguments)
 
     # required args here
-    if parsed_arguments.address is None:
-        parser.error('-a target address is required, '
-                     'use mgmt for local')
-    if parsed_arguments.install_pool_uuid:
-        if parsed_arguments.reg_key is None:
-            parser.error('-i requires -r')
-    if parsed_arguments.modify_pool_uuid:
-        if parsed_arguments.add_on_key_list is None:
-            parser.error('-m requires -A and -r')
-        elif parsed_arguments.reg_key is None:
-            parser.error('-m requires -A and -r')
+    #if parsed_arguments.address is None:
+    #    parser.error('-a target address is required, '
+    #                 'use mgmt for local')
+    #if parsed_arguments.install_pool_uuid:
+    #    if parsed_arguments.reg_key is None:
+    #        parser.error('-i requires -r')
+    #if parsed_arguments.modify_pool_uuid:
+    #    if parsed_arguments.add_on_key_list is None:
+    #        parser.error('-m requires -A and -r')
+    #    elif parsed_arguments.reg_key is None:
+    #        parser.error('-m requires -A and -r')
 
     return parsed_arguments
 
 ### END ARGPARSE SECTION ###
+
+
 
 # create VPC
 

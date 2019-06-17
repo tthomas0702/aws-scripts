@@ -82,9 +82,8 @@ while [ $# -gt 0 ] ; do
 done
 
 # proccessing function outside of main
-  proccess_parameters
 
-
+# decided not to refator and instead write a new script in python using boto3
 
 # TODO
 # Refactoring to move everything into functions and then call from main at the end of script
