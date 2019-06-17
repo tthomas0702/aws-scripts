@@ -21,68 +21,73 @@ declare -rx SCRIPT=${0##*/}
 
 
 # Proccess paramaters
-
 while [ $# -gt 0 ] ; do
-        case "$1" in
-        -h | --help)
-                printf "%s\n" "usage: $SCRIPT  "
-                printf "%s\n" "-n name of VPC to be created default "test1""
-                printf "%s\n" "-s number of subnets to create in each AZ [1,2, or 3] default 3"
-                printf "%s\n" "-r region to create VPC in default us-west-2 (Oregon)"
-                printf "%s\n" "-h --help"
-                printf "%s\n\n" "Most switches are optional if set in the defaults section of the script"
-                printf "%s\n" "Example:"
-                printf "%s\n\n" "$SCRIPT -n devVPC -s 3 -r us-east-1"
+  case "$1" in
+    -h | --help)
+      printf "%s\n" "usage: $SCRIPT  "
+      printf "%s\n" "-n name of VPC to be created default "test1""
+      printf "%s\n" "-s number of subnets to create in each AZ [1,2, or 3] default 3"
+      printf "%s\n" "-r region to create VPC in default us-west-2 (Oregon)"
+      printf "%s\n" "-h --help"
+      printf "%s\n\n" "Most switches are optional if set in the defaults section of the script"
+      printf "%s\n" "Example:"
+      printf "%s\n\n" "$SCRIPT -n devVPC -s 3 -r us-east-1"
 
-        exit 0
+      exit 0
+      ;;
+
+    -n ) shift
+      if [ $# -eq 0 ] ; then
+        printf "$SCRIPT:$LINENO: %s\n" "name for -n missing" >&2
+        exit 192
+      fi
+      name="$1"
+      ;;
+
+    -s ) shift
+      if [ $# -eq 0 ] ; then
+        printf "$SCRIPT:$LINENO: %s\n" "number of subnets for -s is missing" >&2
+        exit 192
+      fi
+      subnet_count="$1"
+      ;;
+
+    -p ) shift
+      if [ $# -eq 0 ] ; then
+        printf "$SCRIPT:$LINENO: %s\n" "The first two octets of network with . appened; eg 10.99." >&2
+        exit 192
+        fi
+        network_prefix="$1"
         ;;
 
-        -n ) shift
-                if [ $# -eq 0 ] ; then
-                printf "$SCRIPT:$LINENO: %s\n" "name for -n missing" >&2
-                exit 192
-                fi
-                name="$1"
-                ;;
+    -r ) shift
+      if [ $# -eq 0 ] ; then
+        printf "$SCRIPT:$LINENO: %s\n"  "-r requires a region be provided" >&2
+        exit 192
+        fi
+        region="$1"
+        ;;
 
-       -s ) shift
-                if [ $# -eq 0 ] ; then
-                printf "$SCRIPT:$LINENO: %s\n" "number of subnets for -s is missing" >&2
-                exit 192
-                fi
-                subnet_count="$1"
-                ;;
+    -* ) printf "$SCRIPT:$LINENO: %s\n"  "switch $1 not supported" >&2
+      exit 192
+      ;;
 
-        -p ) shift
-                if [ $# -eq 0 ] ; then
-                printf "$SCRIPT:$LINENO: %s\n" "The first two octets of network with . appened; eg 10.99." >&2
-                exit 192
-                fi
-                network_prefix="$1"
-                ;;
+     * ) printf "$SCRIPT:$LINENO: %s\n"  "extra argument or missing switch" >&2
+      exit 192
+      ;;
 
 
-
-       -r ) shift
-                if [ $# -eq 0 ] ; then
-                printf "$SCRIPT:$LINENO: %s\n"  "-r requires a region be provided" >&2
-                exit 192
-                fi
-                region="$1"
-                ;;
-
-        -* ) printf "$SCRIPT:$LINENO: %s\n"  "switch $1 not supported" >&2
-             exit 192
-             ;;
-
-        * ) printf "$SCRIPT:$LINENO: %s\n"  "extra argument or missing switch" >&2
-            exit 192
-            ;;
-
-
-        esac
-        shift
+  esac
+  shift
 done
+
+# proccessing function outside of main
+  proccess_parameters
+
+
+
+# TODO
+# Refactoring to move everything into functions and then call from main at the end of script
 
 
 # Functions #
@@ -243,4 +248,18 @@ aws --region $region ec2 authorize-security-group-ingress --group-id $bigiq_sg_i
 # enable --enable-dns-hostnames for VPC
 echo "Setting --enable-dns-hostname for VPC $vpcid"
 aws --region $region ec2 modify-vpc-attribute --vpc-id $vpcid  --enable-dns-hostnames
+
+
+
+
+# TODO
+# refactor and move everything into main 
+
+main()
+{
+
+}
+main "$@"
+
+
 
