@@ -251,14 +251,6 @@ aws --region $region ec2 modify-vpc-attribute --vpc-id $vpcid  --enable-dns-host
 
 
 
-# TODO
-# refactor and move everything into main 
-
-main()
-{
-
-}
-main "$@"
 
 
 
