@@ -8,7 +8,7 @@ from pprint import pprint
 
 def create_client(service_name, region):
     """ Set up client ex. create_client('ec2', 'us-west-2')"""
-    #client = boto3.client(service_name, region_name=region)
+    client = boto3.client(service_name, region_name=region)
     
     return client
 
@@ -29,5 +29,6 @@ if __name__ == '__main__':
 
     # test that client works by get output
     INSTANCES = CLIENT.describe_instances()
-
     pprint(INSTANCES)
+
+

@@ -2,9 +2,6 @@
 
 """Lays out a VPC """
 
-#TODO note: Left off working on argparse section
-# need to remove old requred arg sections that are for BIG-IQ stuff
-
 import argparse
 from pprint import pprint
 import sys
@@ -70,6 +67,11 @@ def cmd_args():
                         help='aws_secret_access_key, if not given values in '
                              '.aws/credintials will be used, these can be set '
                              'by running "aws configure" to set the defaults')
+    parser.add_argument('-t',
+                        '--tag',
+                        action='store',
+                        dest='tag',
+                        help='The string given here will be used in creating tags')
 
 
     parsed_arguments = parser.parse_args()
@@ -97,44 +99,20 @@ def cmd_args():
 
 
 
-# create VPC
+class Aws:
+    """class to put all method in that connet to AWS"""
+    def __init__(self, aws_region=None, aws_key_id=None, aws_secret_key=None):
+        self.session = boto3.Session(
+            aws_access_key_id=aws_key_id,
+            aws_secret_access_key=aws_secret_key,
+            region_name=aws_region
+            )
+        self.ec2_client = self.session.client('ec2') 
+        self.ec2_resource = self.session.resource('ec2')
 
-
-# tag it
-
-
-
-
-# create a IGW
-
-
-
-# get the auto created route tabel and use for Public subnet
-
-
-
-# create a NAT GW
-
-
-
-
-# define subnets
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    def describe_instances(self, InstanceIds=None):
+        """describes all instances unless InstanceId provided """
+        return self.ec2_client.describe_instances()
 
 
 
@@ -146,7 +124,8 @@ if __name__ == "__main__":
 
     OPT = cmd_args()
 
+    conn = Aws()
 
-
-
+    INSTANCES = conn.ec2_client.describe_instances()
+    pprint(INSTANCES)
 
