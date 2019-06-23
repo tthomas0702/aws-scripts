@@ -110,10 +110,6 @@ class Aws:
         self.ec2_client = self.session.client('ec2') 
         self.ec2_resource = self.session.resource('ec2')
 
-    def describe_instances(self, InstanceIds=None):
-        """describes all instances unless InstanceId provided """
-        return self.ec2_client.describe_instances()
-
 
 
 
@@ -126,6 +122,7 @@ if __name__ == "__main__":
 
     conn = Aws()
 
+    # describe all instances
     INSTANCES = conn.ec2_client.describe_instances()
     pprint(INSTANCES)
 
