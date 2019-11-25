@@ -99,6 +99,12 @@ if [ -z "$key_pair" ]; then
     exit 1
 fi
 
+# functions
+get_subnet_ID () {
+    echo $subnet_result | awk '{print $12}'
+}
+
+
 # web tier find amiId
 web_ami=$(aws --region $region ec2 describe-images --filters $linux_image_name --output text --query "Images[*].ImageId")
 
@@ -164,9 +170,8 @@ do
     ((third+=1));
     subnet_result=$(aws ec2 --region $region --output text create-subnet --vpc-id $vpcid --cidr-block 10.0.${third}.0/24 --availability-zone $az) ;
 
-
     #tag public subnet
-    subnetId=`echo $subnet_result | awk '{print $9}'`
+    subnetId=`get_subnet_ID`
     echo "public   AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24" 
     aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=public-${az} 
 
@@ -192,7 +197,7 @@ do
         
 
         #tag private subnet
-        subnetId=`echo $subnet_result | awk '{print $9}'`
+        subnetId=`get_subnet_ID`
         echo "private  AZ: $az subnetId: $subnetId net: 10.0.${third}.0/24"
         aws --region $region ec2 create-tags --resources $subnetId --tags Key=Name,Value=private-${az}
 
