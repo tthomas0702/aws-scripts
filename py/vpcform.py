@@ -97,18 +97,28 @@ def cmd_args():
 
 ### END ARGPARSE SECTION ###
 
+'''
+client: low-level AWS service access, all api
+Resource: higher-level, object-oriented API
+session: stores configuration information (primarily credentials and selected region)
+    - allows you to create service clients and resources
+    - boto3 creates a default session for you when needed
+'''
 
 
 class Aws:
-    """class to put all method in that connet to AWS"""
+    """class to connet to AWS"""
     def __init__(self, aws_region=None, aws_key_id=None, aws_secret_key=None):
         self.session = boto3.Session(
             aws_access_key_id=aws_key_id,
             aws_secret_access_key=aws_secret_key,
             region_name=aws_region
             )
-        self.ec2_client = self.session.client('ec2') 
-        self.ec2_resource = self.session.resource('ec2')
+        #self.ec2_client = self.session.client('ec2') 
+        #self.ec2_resource = self.session.resource('ec2')
+        self.client = self.session.client('ec2')
+        self.resource = self.session.resource('ec2')
+
 
 
 
@@ -120,9 +130,32 @@ if __name__ == "__main__":
 
     OPT = cmd_args()
 
-    conn = Aws()
+    REGION = OPT.region
+
+    AWS_KEY_ID = OPT.aws_access_key_id
+
+    AWS_SECRET_KEY = OPT.aws_secret_access_key
+
+    conn = Aws(aws_region=REGION, aws_key_id=AWS_KEY_ID, aws_secret_key=AWS_SECRET_KEY)
 
     # describe all instances
-    INSTANCES = conn.ec2_client.describe_instances()
+    INSTANCES = conn.client.describe_instances()
     pprint(INSTANCES)
+
+
+    # make a simple VPC for test
+    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.create_vpc
+    RESPONSE = conn.client.create_vpc(
+        CidrBlock='10.0.0.0/16',)
+    print('VPC:')
+    pprint(RESPONSE)
+
+
+
+
+
+
+
+
+
 
