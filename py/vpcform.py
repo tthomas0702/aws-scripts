@@ -52,11 +52,13 @@ def cmd_args():
                         action='store',
                         dest='region',
                         default='us-west-2',
+                        required=True,  # force, not use .aws/config
                         help='AWS region to create VPC in, default=us-west-2')
     parser.add_argument('-i',
                         '--aws-access-key-id',
                         action='store',
                         dest='aws_access_key_id',
+                        required=True,  # force, not use .aws/credetials
                         help='aws_access_key_id, if not given values in '
                              '.aws/credintials will be used, these can be set '
                              'by running "aws configure" to set the defaults')
@@ -64,6 +66,7 @@ def cmd_args():
                         '--aws-secret-access-key',
                         action='store',
                         dest='aws_secret_access_key',
+                        required=True,  # force, not use .aws/credetials
                         help='aws_secret_access_key, if not given values in '
                              '.aws/credintials will be used, these can be set '
                              'by running "aws configure" to set the defaults')
@@ -72,6 +75,14 @@ def cmd_args():
                         action='store',
                         dest='tag',
                         help='The string given here will be used in creating tags')
+    parser.add_argument('-b',
+                        '--vpc-cidr-block',
+                        action='store',
+                        dest='vpc_cidr_block',
+                        required=False,
+                        default='10.0.0.0/16', 
+                        help='base network for VPC default: 10.0.0.0/16')
+
 
 
     parsed_arguments = parser.parse_args()
@@ -120,13 +131,9 @@ class Aws:
         self.resource = self.session.resource('ec2')
 
 
-
-
-
 if __name__ == "__main__":
 
     SCRIPT_NAME = sys.argv[0]
-
 
     OPT = cmd_args()
 
@@ -136,6 +143,8 @@ if __name__ == "__main__":
 
     AWS_SECRET_KEY = OPT.aws_secret_access_key
 
+    VPC_CIDR_BLOCK = OPT.vpc_cidr_block
+
     conn = Aws(aws_region=REGION, aws_key_id=AWS_KEY_ID, aws_secret_key=AWS_SECRET_KEY)
 
     # describe all instances
@@ -143,18 +152,21 @@ if __name__ == "__main__":
     pprint(INSTANCES)
 
 
-    # make a simple VPC for test
+    # make a simple VPC for test using client
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.create_vpc
-    RESPONSE = conn.client.create_vpc(
-        CidrBlock='10.0.0.0/16',)
+    #RESPONSE = conn.client.create_vpc(
+    #    CidrBlock=VPC_CIDR_BLOCK,)
+    #print('VPC:')
+    #pprint(RESPONSE)
+
+
+    # make a simple VPC for test using resourse
+    VPC = conn.resource.create_vpc(
+        CidrBlock=VPC_CIDR_BLOCK,)
     print('VPC:')
-    pprint(RESPONSE)
+    pprint(VPC)
 
-
-
-
-
-
+    # next use VPC object to add tag for vpc
 
 
 
