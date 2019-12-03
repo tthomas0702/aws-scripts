@@ -27,9 +27,10 @@ def cmd_args():
     parser.add_argument('-n',
                         '--name',
                         action='store',
-                        dest='vpc_name',
+                        dest='name',
                         default='default-name',
-                        help='name for the VPC')
+                        required=True,
+                        help='name for the VPC and tags in it')
     parser.add_argument('-s',
                         '--subnet-count',
                         action='store',
@@ -118,7 +119,7 @@ session: stores configuration information (primarily credentials and selected re
 
 
 class Aws:
-    """class to connet to AWS"""
+    """class to connect to AWS"""
     def __init__(self, aws_region=None, aws_key_id=None, aws_secret_key=None):
         self.session = boto3.Session(
             aws_access_key_id=aws_key_id,
@@ -145,28 +146,71 @@ if __name__ == "__main__":
 
     VPC_CIDR_BLOCK = OPT.vpc_cidr_block
 
-    conn = Aws(aws_region=REGION, aws_key_id=AWS_KEY_ID, aws_secret_key=AWS_SECRET_KEY)
+    NAME = OPT.name
+
+    ec2 = Aws(aws_region=REGION, aws_key_id=AWS_KEY_ID, aws_secret_key=AWS_SECRET_KEY)
 
     # describe all instances
-    INSTANCES = conn.client.describe_instances()
-    pprint(INSTANCES)
+    #INSTANCES = ec2.client.describe_instances()
+    #pprint(INSTANCES)
 
 
-    # make a simple VPC for test using client
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.create_vpc
-    #RESPONSE = conn.client.create_vpc(
+    ## example: make a simple VPC for test using client
+    #RESPONSE = ec2.client.create_vpc(
     #    CidrBlock=VPC_CIDR_BLOCK,)
     #print('VPC:')
     #pprint(RESPONSE)
 
 
-    # make a simple VPC for test using resourse
-    VPC = conn.resource.create_vpc(
+    # make a VPC for using resourse
+    VPC = ec2.resource.create_vpc(
         CidrBlock=VPC_CIDR_BLOCK,)
-    print('VPC:')
-    pprint(VPC)
-
+    VPC.wait_until_available()
+    print('Created VPC: {}'.format(VPC.id))
     # next use VPC object to add tag for vpc
+    VPC.create_tags(Tags=[{"Key": "Name", "Value": NAME}])
+
+
+    # make internet gateway
+    IGW_NAME = '{}-IGW'.format(NAME)
+    IGW = ec2.resource.create_internet_gateway()
+    print('Created Internet Gatway {}'.format(IGW.id))
+
+    print('Tag IGW Name: {}'.format(IGW_NAME))
+    IGW.create_tags(Tags=[{"Key": "Name", "Value": IGW_NAME}])
+
+    # attach  IGW to VPC
+    print('attach_internet_gateway {} to VPC {}'.format(IGW.id, VPC.id))
+    VPC.attach_internet_gateway(InternetGatewayId=IGW.id)
+
+
+    #TODO consider using the main route table instead of creating a new on below
+    # how do I find it?  with the "main" attribute?
+
+    # create route table and route to IGW
+    TABLE_NAME = '{}-rtb-igw'.format(NAME)
+    ROUTE_TABLE = VPC.create_route_table()
+    ROUTE = ROUTE_TABLE.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=IGW.id)
+    ROUTE_TABLE.create_tags(Tags=[{"Key": "Name", "Value": TABLE_NAME}])
+
+    # NExt...
+    # make subnets for each AZ
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
