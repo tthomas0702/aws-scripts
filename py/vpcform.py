@@ -187,6 +187,7 @@ if __name__ == "__main__":
     #TODO consider using the main route table instead of creating a new on below
     # how do I find it?  with the "main" attribute?
 
+
     # create route table and route to IGW
     TABLE_NAME = '{}-rtb-igw'.format(NAME)
     ROUTE_TABLE = VPC.create_route_table()
