@@ -195,22 +195,30 @@ if __name__ == "__main__":
     print('attach_internet_gateway {} to VPC {}'.format(IGW.id, VPC.id))
     VPC.attach_internet_gateway(InternetGatewayId=IGW.id)
 
-
-    # get main route_table  object
+    # tag "main" route table but put no route in it
     MAIN_ROUTE_TABLE = get_main_route_table_object(VPC)
     print('MAIN_ROUTE_TABLE.id is: {}'.format(MAIN_ROUTE_TABLE.id))
+    TABLE_NAME = '{}-main-rtb'.format(NAME)
+    MAIN_ROUTE_TABLE.create_tags(Tags=[{"Key": "Name", "Value": TABLE_NAME}])
 
-    # TODO   take the main table, add route to igw
+
+    # create route table for pub subnet and add route to IGW
+    TABLE_NAME = '{}-pub-rtb'.format(NAME)
+    ROUTE_TABLE = VPC.create_route_table()
+    ROUTE = ROUTE_TABLE.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=IGW.id)
+    ROUTE_TABLE.create_tags(Tags=[{"Key": "Name", "Value": TABLE_NAME}])
 
 
-    # create route table and route to IGW
-    #TABLE_NAME = '{}-main-rtb'.format(NAME)
-    #ROUTE_TABLE = VPC.create_route_table()
-    #ROUTE = ROUTE_TABLE.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=IGW.id)
-    #ROUTE_TABLE.create_tags(Tags=[{"Key": "Name", "Value": TABLE_NAME}])
-
-    # NExt...
-    # make subnets for each AZ
+    # get availablity zones
+    # need clietn for this
+    # get dict of avialablitly zones
+    avail_zones = ec2.client.describe_availability_zones()
+    # get list of dicts of zones
+    avail_zone_list = avail_zones['AvailabilityZones']
+    
+    #print zone that I need subnets for
+    for zone_dict in avail_zone_list:
+        print('ZoneName: {}    ZoneId: {} '.format(zone_dict['ZoneName'], zone_dict['ZoneId']))
 
 
 

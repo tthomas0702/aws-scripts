@@ -1,0 +1,7 @@
+
+
+ec2 = boto3.resource('ec2', region_name='us-west-2', aws_access_key_id='xxxxxxxxxxxxxxxxxxxxx', aws_secret_access_key='xxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+
+
+
+object_methods = [method_name for method_name in dir(object) if callable(getattr(object, method_name))]
