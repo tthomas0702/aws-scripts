@@ -132,6 +132,18 @@ class Aws:
         self.resource = self.session.resource('ec2')
 
 
+def get_main_route_table_object(vpc):
+    'uses vpc object to get the default main route table auto created'
+    main_route_table = []
+    for route_table in  list(vpc.route_tables.all()):
+        for association in list(route_table.associations):
+            if association.main == True:
+                main_route_table.append(route_table)
+                rt = main_route_table[0]
+
+            return rt
+
+
 if __name__ == "__main__":
 
     SCRIPT_NAME = sys.argv[0]
@@ -184,15 +196,18 @@ if __name__ == "__main__":
     VPC.attach_internet_gateway(InternetGatewayId=IGW.id)
 
 
-    #TODO consider using the main route table instead of creating a new on below
-    # how do I find it?  with the "main" attribute?
+    # get main route_table  object
+    MAIN_ROUTE_TABLE = get_main_route_table_object(VPC)
+    print('MAIN_ROUTE_TABLE.id is: {}'.format(MAIN_ROUTE_TABLE.id))
+
+    # TODO   take the main table, add route to igw
 
 
     # create route table and route to IGW
-    TABLE_NAME = '{}-rtb-igw'.format(NAME)
-    ROUTE_TABLE = VPC.create_route_table()
-    ROUTE = ROUTE_TABLE.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=IGW.id)
-    ROUTE_TABLE.create_tags(Tags=[{"Key": "Name", "Value": TABLE_NAME}])
+    #TABLE_NAME = '{}-main-rtb'.format(NAME)
+    #ROUTE_TABLE = VPC.create_route_table()
+    #ROUTE = ROUTE_TABLE.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=IGW.id)
+    #ROUTE_TABLE.create_tags(Tags=[{"Key": "Name", "Value": TABLE_NAME}])
 
     # NExt...
     # make subnets for each AZ
