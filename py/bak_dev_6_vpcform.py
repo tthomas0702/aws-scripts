@@ -143,10 +143,6 @@ def get_main_route_table_object(vpc):
 
             return rt
 
-def tagger(object_name, key_name, tag_value):
-    'generic tagger'
-    object_name.create_tags(Tags=[{"Key": key_name, "Value": tag_value}])    
-
 
 if __name__ == "__main__":
 
@@ -166,34 +162,52 @@ if __name__ == "__main__":
 
     ec2 = Aws(aws_region=REGION, aws_key_id=AWS_KEY_ID, aws_secret_key=AWS_SECRET_KEY)
 
+    # describe all instances
+    #INSTANCES = ec2.client.describe_instances()
+    #pprint(INSTANCES)
+
+
+    ## example: make a simple VPC for test using client
+    #RESPONSE = ec2.client.create_vpc(
+    #    CidrBlock=VPC_CIDR_BLOCK,)
+    #print('VPC:')
+    #pprint(RESPONSE)
+
+
     # make a VPC for using resourse
     VPC = ec2.resource.create_vpc(
         CidrBlock=VPC_CIDR_BLOCK,)
     VPC.wait_until_available()
-    tagger(VPC, "Name", NAME)
     print('Created VPC: {}'.format(VPC.id))
+    # next use VPC object to add tag for vpc
+    VPC.create_tags(Tags=[{"Key": "Name", "Value": NAME}])
+
 
     # make internet gateway
+    IGW_NAME = '{}-IGW'.format(NAME)
     IGW = ec2.resource.create_internet_gateway()
-    tagger(IGW, "Name", '{}-IGW'.format(NAME))
-    print('Created Internet Gatway') 
+    print('Created Internet Gatway {}'.format(IGW.id))
+
+    print('Tag IGW Name: {}'.format(IGW_NAME))
+    IGW.create_tags(Tags=[{"Key": "Name", "Value": IGW_NAME}])
 
     # attach  IGW to VPC
-    print('Attaching internet gateway {} to VPC {}'.format(IGW.id, VPC.id))
+    print('attach_internet_gateway {} to VPC {}'.format(IGW.id, VPC.id))
     VPC.attach_internet_gateway(InternetGatewayId=IGW.id)
 
     # tag "main" route table but put no route in it
-    MAIN_MGMT_ROUTE_TABLE = get_main_route_table_object(VPC)
-    tagger(MAIN_MGMT_ROUTE_TABLE, "Name", '{}-main-rtb'.format(NAME))
-    print('MAIN_MGMT_ROUTE_TABLE.id is: {}'.format(MAIN_MGMT_ROUTE_TABLE.id))
+    MAIN_ROUTE_TABLE = get_main_route_table_object(VPC)
+    print('MAIN_ROUTE_TABLE.id is: {}'.format(MAIN_ROUTE_TABLE.id))
+    TABLE_NAME = '{}-main-rtb'.format(NAME)
+    MAIN_ROUTE_TABLE.create_tags(Tags=[{"Key": "Name", "Value": TABLE_NAME}])
+
 
     # create route table for pub subnet and add route to IGW
-    MGMT_ROUTE_TABLE = VPC.create_route_table()
-    tagger(MGMT_ROUTE_TABLE, "Name", '{}-mgmt-rtb'.format(NAME))
-    MGMT_DEFAULT_ROUTE = MGMT_ROUTE_TABLE.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=IGW.id)
+    TABLE_NAME = '{}-pub-rtb'.format(NAME)
+    ROUTE_TABLE = VPC.create_route_table()
+    ROUTE = ROUTE_TABLE.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=IGW.id)
+    ROUTE_TABLE.create_tags(Tags=[{"Key": "Name", "Value": TABLE_NAME}])
 
-
-#TODO create a subnet making function and fogure out how to make subnet MGMT, PUBLIC, and PRIVATE
 
     # get availablity zones
     # need clietn for this
