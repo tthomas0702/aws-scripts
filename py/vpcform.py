@@ -84,38 +84,13 @@ def cmd_args():
                         default='10.0.0.0/16', 
                         help='base network for VPC default: 10.0.0.0/16')
 
-
-
     parsed_arguments = parser.parse_args()
 
-    # debug set print parser info
-    if parsed_arguments.debug is True:
-        print(parsed_arguments)
-
-    # required args here
-    #if parsed_arguments.address is None:
-    #    parser.error('-a target address is required, '
-    #                 'use mgmt for local')
-    #if parsed_arguments.install_pool_uuid:
-    #    if parsed_arguments.reg_key is None:
-    #        parser.error('-i requires -r')
-    #if parsed_arguments.modify_pool_uuid:
-    #    if parsed_arguments.add_on_key_list is None:
-    #        parser.error('-m requires -A and -r')
-    #    elif parsed_arguments.reg_key is None:
-    #        parser.error('-m requires -A and -r')
 
     return parsed_arguments
 
-### END ARGPARSE SECTION ###
 
-'''
-client: low-level AWS service access, all api
-Resource: higher-level, object-oriented API
-session: stores configuration information (primarily credentials and selected region)
-    - allows you to create service clients and resources
-    - boto3 creates a default session for you when needed
-'''
+### END ARGPARSE SECTION ###
 
 
 class Aws:
@@ -146,6 +121,18 @@ def get_main_route_table_object(vpc):
 def tagger(object_name, key_name, tag_value):
     'generic tagger'
     object_name.create_tags(Tags=[{"Key": key_name, "Value": tag_value}])    
+
+
+def make_az_id_list():
+    'Make list of AZ ZoneId for this region'
+    avail_zones = ec2.client.describe_availability_zones()
+    avail_zone_list = avail_zones['AvailabilityZones']
+    az_zone_id_list = []
+    for zone_dict in avail_zone_list:
+        az_zone_id_list.append(zone_dict['ZoneId'])
+        
+    return az_zone_id_list
+
 
 
 if __name__ == "__main__":
@@ -187,56 +174,28 @@ if __name__ == "__main__":
     tagger(MAIN_MGMT_ROUTE_TABLE, "Name", '{}-main-rtb'.format(NAME))
     print('MAIN_MGMT_ROUTE_TABLE.id is: {}'.format(MAIN_MGMT_ROUTE_TABLE.id))
 
-    # create route table for pub subnet and add route to IGW
+    # create route table xx pub subnet and add route to IGW
     MGMT_ROUTE_TABLE = VPC.create_route_table()
     tagger(MGMT_ROUTE_TABLE, "Name", '{}-mgmt-rtb'.format(NAME))
     MGMT_DEFAULT_ROUTE = MGMT_ROUTE_TABLE.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=IGW.id)
 
-
-#TODO create a subnet making function and fogure out how to make subnet MGMT, PUBLIC, and PRIVATE
-
-    # get availablity zones
-    # need clietn for this
-    # get dict of avialablitly zones
-    avail_zones = ec2.client.describe_availability_zones()
-    # get list of dicts of zones
-    avail_zone_list = avail_zones['AvailabilityZones']
-    
-    #print zone that I need subnets for
+# Maybe I want to change this to make mgmt,pub, so that the IP will be easier to remember
+    print('Creating Subnets...')
+    SUBNET_NAME_LIST = ['mgmt', 'pub', 'priv']
+    ZONE_ID_LIST = make_az_id_list()
     third_oct = 0
-    
-    for zone_dict in avail_zone_list:
-        third_oct += 1
-        print('Creating subnet:')
-        print('ZoneName: {}    ZoneId: {} '.format(zone_dict['ZoneName'], zone_dict['ZoneId']))
-        print('10.0.{}.0/24'.format(str(third_oct)))
-        subnet = ec2.resource.create_subnet(
-            #AvailabilityZone=zone_dict['ZoneName'],
-            AvailabilityZoneId=zone_dict['ZoneId'],
+    for subnet_name in SUBNET_NAME_LIST:
+        for zone_id in ZONE_ID_LIST:
+            third_oct += 1
+            subnet = ec2.resource.create_subnet(
+            AvailabilityZoneId=zone_id,
             CidrBlock='10.0.{}.0/24'.format(str(third_oct)),
             VpcId=VPC.id,
             DryRun=False
             )
-    # This will create a subnet for each AZ
-    # need to tag
-    # need to associate route_table to subnets
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            print('10.0.{}.0/24  {}-{}'.format(str(third_oct), subnet_name, zone_id))
+            tagger(subnet, "Name", '{}-{}'.format(subnet_name, zone_id))
+            # TODO   Asociate route table if not priv
 
 
 
