@@ -12,8 +12,14 @@ import boto3
 ### Arguments parsing section ###
 def cmd_args():
     """Handles command line arguments given."""
-    parser = argparse.ArgumentParser(description='This is a tool for forming'
-                                                 'a VPC')
+    parser = argparse.ArgumentParser(
+        description='''Example:
+                    ./vpcform.py
+                           -r us-west-2
+                           -s 2
+                           -i <KEY_ID>
+                           -k <ACCESS_KEY>
+                           -n devVpc1''')
     parser.add_argument('-d',
                         '--debug',
                         action='store_true',
@@ -81,7 +87,7 @@ def cmd_args():
                         action='store',
                         dest='vpc_cidr_block',
                         required=False,
-                        default='10.0.0.0/16', 
+                        default='10.0.0.0/16',
                         help='base network for VPC default: 10.0.0.0/16')
 
     parsed_arguments = parser.parse_args()
@@ -101,7 +107,7 @@ class Aws:
             aws_secret_access_key=aws_secret_key,
             region_name=aws_region
             )
-        #self.ec2_client = self.session.client('ec2') 
+        #self.ec2_client = self.session.client('ec2')
         #self.ec2_resource = self.session.resource('ec2')
         self.client = self.session.client('ec2')
         self.resource = self.session.resource('ec2')
@@ -112,15 +118,15 @@ def get_main_route_table_object(vpc):
     main_route_table = []
     for route_table in  list(vpc.route_tables.all()):
         for association in list(route_table.associations):
-            if association.main == True:
+            if association.main:
                 main_route_table.append(route_table)
-                rt = main_route_table[0]
+                main_rtbl_obj = main_route_table[0]
 
-            return rt
+            return main_rtbl_obj
 
 def tagger(object_name, key_name, tag_value):
     'generic tagger'
-    object_name.create_tags(Tags=[{"Key": key_name, "Value": tag_value}])    
+    object_name.create_tags(Tags=[{"Key": key_name, "Value": tag_value}])
 
 
 def make_az_id_list():
@@ -130,7 +136,7 @@ def make_az_id_list():
     az_zone_id_list = []
     for zone_dict in avail_zone_list:
         az_zone_id_list.append(zone_dict['ZoneId'])
-        
+
     return az_zone_id_list
 
 
@@ -163,7 +169,7 @@ if __name__ == "__main__":
     # make internet gateway
     IGW = ec2.resource.create_internet_gateway()
     tagger(IGW, "Name", '{}-IGW'.format(NAME))
-    print('Created Internet Gatway') 
+    print('Created Internet Gatway')
 
     # attach  IGW to VPC
     print('Attaching internet gateway {} to VPC {}'.format(IGW.id, VPC.id))
@@ -177,23 +183,25 @@ if __name__ == "__main__":
     # create route table xx pub subnet and add route to IGW
     MGMT_ROUTE_TABLE = VPC.create_route_table()
     tagger(MGMT_ROUTE_TABLE, "Name", '{}-mgmt-rtb'.format(NAME))
-    MGMT_DEFAULT_ROUTE = MGMT_ROUTE_TABLE.create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=IGW.id)
+    MGMT_DEFAULT_ROUTE = MGMT_ROUTE_TABLE.create_route(
+        DestinationCidrBlock='0.0.0.0/0',
+        GatewayId=IGW.id)
 
 # Maybe I want to change this to make mgmt,pub, so that the IP will be easier to remember
     print('Creating Subnets...')
     SUBNET_NAME_LIST = ['mgmt', 'pub', 'priv']
     ZONE_ID_LIST = make_az_id_list()
-    third_oct = 0
+    THIRD_OCTET = 0
     for subnet_name in SUBNET_NAME_LIST:
         for zone_id in ZONE_ID_LIST:
-            third_oct += 1
+            THIRD_OCTET += 1
             subnet = ec2.resource.create_subnet(
-            AvailabilityZoneId=zone_id,
-            CidrBlock='10.0.{}.0/24'.format(str(third_oct)),
-            VpcId=VPC.id,
-            DryRun=False
-            )
-            print('10.0.{}.0/24  {}-{}'.format(str(third_oct), subnet_name, zone_id))
+                AvailabilityZoneId=zone_id,
+                CidrBlock='10.0.{}.0/24'.format(str(THIRD_OCTET)),
+                VpcId=VPC.id,
+                DryRun=False
+                )
+            print('10.0.{}.0/24  {}-{}'.format(str(THIRD_OCTET), subnet_name, zone_id))
             tagger(subnet, "Name", '{}-{}'.format(subnet_name, zone_id))
             # TODO   Asociate route table if not priv
 
