@@ -39,7 +39,9 @@ def cmd_args():
                         help='name for the VPC and tags in it')
     parser.add_argument('-s',
                         '--subnet-count',
+                        type=int,
                         action='store',
+                        choices=[1,2,3],
                         dest='subnet_count',
                         default='2',
                         help='Number of subnets to create in each AZ, default=2')
@@ -107,8 +109,6 @@ class Aws:
             aws_secret_access_key=aws_secret_key,
             region_name=aws_region
             )
-        #self.ec2_client = self.session.client('ec2')
-        #self.ec2_resource = self.session.resource('ec2')
         self.client = self.session.client('ec2')
         self.resource = self.session.resource('ec2')
 
@@ -147,15 +147,13 @@ if __name__ == "__main__":
 
     OPT = cmd_args()
 
+    # gather arg values given
     REGION = OPT.region
-
     AWS_KEY_ID = OPT.aws_access_key_id
-
     AWS_SECRET_KEY = OPT.aws_secret_access_key
-
     VPC_CIDR_BLOCK = OPT.vpc_cidr_block
-
     NAME = OPT.name
+    SUBNET_PER_AZ = OPT.subnet_count
 
     ec2 = Aws(aws_region=REGION, aws_key_id=AWS_KEY_ID, aws_secret_key=AWS_SECRET_KEY)
 
@@ -168,6 +166,7 @@ if __name__ == "__main__":
 
     # make internet gateway
     IGW = ec2.resource.create_internet_gateway()
+    # TODO need waiter for IGW before tagging... fails sometimes
     tagger(IGW, "Name", '{}-IGW'.format(NAME))
     print('Created Internet Gatway')
 
@@ -187,14 +186,18 @@ if __name__ == "__main__":
         DestinationCidrBlock='0.0.0.0/0',
         GatewayId=IGW.id)
 
-# Maybe I want to change this to make mgmt,pub, so that the IP will be easier to remember
+    # TODO consider moving this to a function
+    # create subnets
     print('Creating Subnets...')
     SUBNET_NAME_LIST = ['mgmt', 'pub', 'priv']
     ZONE_ID_LIST = make_az_id_list()
+    print(ZONE_ID_LIST)
     THIRD_OCTET = 0
-    for subnet_name in SUBNET_NAME_LIST:
-        for zone_id in ZONE_ID_LIST:
+    for zone_id in ZONE_ID_LIST:
+        az_subnet_count = 0
+        for subnet_name in SUBNET_NAME_LIST:
             THIRD_OCTET += 1
+            az_subnet_count += 1
             subnet = ec2.resource.create_subnet(
                 AvailabilityZoneId=zone_id,
                 CidrBlock='10.0.{}.0/24'.format(str(THIRD_OCTET)),
@@ -202,10 +205,12 @@ if __name__ == "__main__":
                 DryRun=False
                 )
             print('10.0.{}.0/24  {}-{}'.format(str(THIRD_OCTET), subnet_name, zone_id))
+            # TODO Need waiter for subnet before tagging
             tagger(subnet, "Name", '{}-{}'.format(subnet_name, zone_id))
             # TODO   Asociate route table if not priv
 
-
+            if az_subnet_count >= SUBNET_PER_AZ:
+                break 
 
 
 
