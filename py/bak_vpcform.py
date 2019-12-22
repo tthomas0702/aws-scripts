@@ -39,7 +39,9 @@ def cmd_args():
                         help='name for the VPC and tags in it')
     parser.add_argument('-s',
                         '--subnet-count',
+                        type=int,
                         action='store',
+                        choices=[1, 2, 3],
                         dest='subnet_count',
                         default='2',
                         help='Number of subnets to create in each AZ, default=2')
@@ -137,6 +139,30 @@ def make_az_id_list():
 
     return az_zone_id_list
 
+def subnet_maker(subnet_name_list,
+                 zone_id_list,
+                 subnet_per_az,
+                 pub_route_obj):
+    third_octet = 0
+    for zone_id in zone_id_list:
+        az_subnet_count = 0
+        for subnet_name in subnet_name_list:
+            third_octet += 1
+            az_subnet_count += 1
+            subnet = ec2.resource.create_subnet(
+                AvailabilityZoneId=zone_id,
+                CidrBlock='10.0.{}.0/24'.format(str(third_octet)),
+                VpcId=VPC.id,
+                DryRun=False
+                )
+            print('10.0.{}.0/24  {}-{}'.format(str(third_octet), subnet_name, zone_id))
+            waiter = ec2.client.get_waiter('subnet_available')
+            waiter.wait(SubnetIds=[subnet.id])
+            tagger(subnet, "Name", '{}-{}'.format(subnet_name, zone_id))
+            if subnet_name != 'priv':
+                pub_route_obj.associate_with_subnet(SubnetId=subnet.id)
+            if az_subnet_count >= subnet_per_az:
+                break
 
 
 if __name__ == "__main__":
@@ -145,14 +171,11 @@ if __name__ == "__main__":
 
     OPT = cmd_args()
 
+    # gather arg values given
     REGION = OPT.region
-
     AWS_KEY_ID = OPT.aws_access_key_id
-
     AWS_SECRET_KEY = OPT.aws_secret_access_key
-
     VPC_CIDR_BLOCK = OPT.vpc_cidr_block
-
     NAME = OPT.name
 
     ec2 = Aws(aws_region=REGION, aws_key_id=AWS_KEY_ID, aws_secret_key=AWS_SECRET_KEY)
@@ -166,6 +189,7 @@ if __name__ == "__main__":
 
     # make internet gateway
     IGW = ec2.resource.create_internet_gateway()
+    # TODO need waiter for IGW before tagging... fails sometimes
     tagger(IGW, "Name", '{}-IGW'.format(NAME))
     print('Created Internet Gatway')
 
@@ -174,36 +198,22 @@ if __name__ == "__main__":
     VPC.attach_internet_gateway(InternetGatewayId=IGW.id)
 
     # tag "main" route table but put no route in it
-    MAIN_MGMT_ROUTE_TABLE = get_main_route_table_object(VPC)
-    tagger(MAIN_MGMT_ROUTE_TABLE, "Name", '{}-main-rtb'.format(NAME))
-    print('MAIN_MGMT_ROUTE_TABLE.id is: {}'.format(MAIN_MGMT_ROUTE_TABLE.id))
+    MAIN_PUB_ROUTE_TABLE = get_main_route_table_object(VPC)
+    tagger(MAIN_PUB_ROUTE_TABLE, "Name", '{}-main-rtb'.format(NAME))
+    print('MAIN_PUB_ROUTE_TABLE.id is: {}'.format(MAIN_PUB_ROUTE_TABLE.id))
 
     # create route table xx pub subnet and add route to IGW
-    MGMT_ROUTE_TABLE = VPC.create_route_table()
-    tagger(MGMT_ROUTE_TABLE, "Name", '{}-mgmt-rtb'.format(NAME))
-    MGMT_DEFAULT_ROUTE = MGMT_ROUTE_TABLE.create_route(
+    PUB_ROUTE_TABLE = VPC.create_route_table()
+    tagger(PUB_ROUTE_TABLE, "Name", '{}-pub-rtb'.format(NAME))
+    MGMT_DEFAULT_ROUTE = PUB_ROUTE_TABLE.create_route(
         DestinationCidrBlock='0.0.0.0/0',
         GatewayId=IGW.id)
 
-# Maybe I want to change this to make mgmt,pub, so that the IP will be easier to remember
+    # create subnets
     print('Creating Subnets...')
     SUBNET_NAME_LIST = ['mgmt', 'pub', 'priv']
     ZONE_ID_LIST = make_az_id_list()
-    THIRD_OCTET = 0
-    for subnet_name in SUBNET_NAME_LIST:
-        for zone_id in ZONE_ID_LIST:
-            THIRD_OCTET += 1
-            subnet = ec2.resource.create_subnet(
-                AvailabilityZoneId=zone_id,
-                CidrBlock='10.0.{}.0/24'.format(str(THIRD_OCTET)),
-                VpcId=VPC.id,
-                DryRun=False
-                )
-            print('10.0.{}.0/24  {}-{}'.format(str(THIRD_OCTET), subnet_name, zone_id))
-            tagger(subnet, "Name", '{}-{}'.format(subnet_name, zone_id))
-            # TODO   Asociate route table if not priv
+    SUBNET_PER_AZ = OPT.subnet_count
 
-
-
-
+    subnet_maker(SUBNET_NAME_LIST, ZONE_ID_LIST, SUBNET_PER_AZ, PUB_ROUTE_TABLE)
 
