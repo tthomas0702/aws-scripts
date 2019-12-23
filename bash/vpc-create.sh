@@ -1,12 +1,6 @@
 #!/bin/bash
 
-
 # vpc-create.sh version 0.1.0
-# This works with version of aws-cli found on fedora 28
-# aws-cli/1.14.32 Python/2.7.15 Linux/4.18.16-200.fc28.x86_64 botocore/1.8.36
-#
-# it fails on version default for Ubuntu 16.0.4 LTS
-# aws-cli/1.11.13 Python/3.5.2 Linux/4.15.0-39-generic botocore/1.4.70
 
 ### SET DEFAULTS HERE ###
 name="test1-new"
@@ -87,7 +81,8 @@ done
 
 # TODO
 # Refactoring to move everything into functions and then call from main at the end of script
-
+# This is left unfinished. The script word but I decided to write over in python
+# see vpcform.py
 
 # Functions #
 
