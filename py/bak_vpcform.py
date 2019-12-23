@@ -102,7 +102,7 @@ def cmd_args():
 
 
 class Aws:
-    """class to connect to AWS"""
+    'class to connect to AWS'
     def __init__(self, aws_region=None, aws_key_id=None, aws_secret_key=None):
         self.session = boto3.Session(
             aws_access_key_id=aws_key_id,
@@ -189,7 +189,9 @@ if __name__ == "__main__":
 
     # make internet gateway
     IGW = ec2.resource.create_internet_gateway()
-    # TODO need waiter for IGW before tagging... fails sometimes
+    # This is a crude delay because there is not an existing waiter
+    # and I am still working on understanding how to make my own waiter
+    time.sleep(5)
     tagger(IGW, "Name", '{}-IGW'.format(NAME))
     print('Created Internet Gatway')
 
@@ -214,6 +216,5 @@ if __name__ == "__main__":
     SUBNET_NAME_LIST = ['mgmt', 'pub', 'priv']
     ZONE_ID_LIST = make_az_id_list()
     SUBNET_PER_AZ = OPT.subnet_count
-
     subnet_maker(SUBNET_NAME_LIST, ZONE_ID_LIST, SUBNET_PER_AZ, PUB_ROUTE_TABLE)
 
