@@ -7,6 +7,7 @@ from pprint import pprint
 import sys
 import time
 import boto3
+from botocore.exceptions import ClientError
 
 
 ### Arguments parsing section ###
@@ -143,6 +144,7 @@ def subnet_maker(subnet_name_list,
                  zone_id_list,
                  subnet_per_az,
                  pub_route_obj):
+    'creates subnet'
     third_octet = 0
     for zone_id in zone_id_list:
         az_subnet_count = 0
@@ -168,12 +170,12 @@ def subnet_maker(subnet_name_list,
 def get_vpc_auto_created_security_group_id(sg_group_dict_list, vpc_id):
     '''
      get the security_group auto-created when VPC is created
-     only works when no other SG have been created 
+     only works when no other SG have been created
      to get sg_group_dict_list:
      SG_GROUPS = ec2.client.describe_security_groups()['SecurityGroups']
     '''
     for group in sg_group_dict_list:
-        if group['VpcId'] == VPC.id:
+        if group['VpcId'] == vpc_id:
             default_sg_id = group['GroupId']
 
     return default_sg_id
@@ -186,6 +188,43 @@ def print_object_methods(object):
         getattr(object, method_name))]
 
     return pprint(object_methods)
+
+
+
+def create_security_group_ip_permissions(port_rule_list):
+    '''
+    takes list of lists [[<IpProtocol>, <FromPort>, <ToPort>, <IpRanges>]...]
+    eg. [['tcp', 80, 80, '0.0.0.0/0'],['tcp', 22, 22, '0.0.0.0/0']]
+    '''
+    port_rules = []
+    for rule in port_rule_list:
+        port_rules.append({'IpProtocol': rule[0],
+                           'FromPort': rule[1],
+                           'ToPort': rule[2],
+                           'IpRanges': [{'CidrIp': rule[3]}]})
+
+    return port_rules
+
+
+def create_security_group(group_name, description_str, vpc_id, rules_dict_list):
+    'create SG '
+    try:
+        response = ec2.client.create_security_group(
+            GroupName=group_name,
+            Description=description_str,
+            VpcId=vpc_id)
+        security_group_id = response['GroupId']
+        print('Security Group Created {} in vpc {}.'.format(security_group_id, vpc_id))
+
+        data = ec2.client.authorize_security_group_ingress(
+            GroupId=security_group_id,
+            IpPermissions=rules_dict_list
+            )
+        print('Ingress Successfully Set')
+    except ClientError as e:
+        print(e)
+
+    return security_group_id
 
 
 
@@ -210,47 +249,50 @@ if __name__ == "__main__":
     VPC = ec2.resource.create_vpc(
         CidrBlock=VPC_CIDR_BLOCK,)
     VPC.wait_until_available()
-    tagger(VPC, "Name", NAME)
+    tagger(VPC, 'Name', NAME)
     print('Created VPC: {}'.format(VPC.id))
 
 
-    # get security grouop ID of auto created SG so i can tagit
+    # Tag the DEFAULT_SG_ID
     SG_GROUPS = ec2.client.describe_security_groups()['SecurityGroups']
     DEFAULT_SG_ID = get_vpc_auto_created_security_group_id(SG_GROUPS, VPC.id)
     print('The DEFAULT_SG_ID is: {}'.format(DEFAULT_SG_ID))
-    # TODO Tage the DEFAULT_SG_ID 
+    DEFAULT_SECURITY_GROUP = ec2.resource.SecurityGroup(DEFAULT_SG_ID)
+    tagger(DEFAULT_SECURITY_GROUP, 'Name', '{}-default'.format(NAME))
+
 
     # enable DNS support for VPC
-    ec2.client.modify_vpc_attribute( VpcId = VPC.id , EnableDnsSupport = { 'Value': True } )
-    ec2.client.modify_vpc_attribute( VpcId = VPC.id , EnableDnsHostnames = { 'Value': True } )
+    ec2.client.modify_vpc_attribute(VpcId=VPC.id, EnableDnsSupport={'Value': True})
+    ec2.client.modify_vpc_attribute(VpcId=VPC.id, EnableDnsHostnames={'Value': True})
 
-    # temp debug
-    #print_object_methods(ec2.client)
 
-    
     # make internet gateway
     IGW = ec2.resource.create_internet_gateway()
     # This is a crude delay because there is not an existing waiter
     # and I am still working on understanding how to make my own waiter
     time.sleep(5)
-    tagger(IGW, "Name", '{}-IGW'.format(NAME))
+    tagger(IGW, 'Name', '{}-IGW'.format(NAME))
     print('Created Internet Gatway')
+
 
     # attach  IGW to VPC
     print('Attaching internet gateway {} to VPC {}'.format(IGW.id, VPC.id))
     VPC.attach_internet_gateway(InternetGatewayId=IGW.id)
 
+
     # tag "main" route table but put no route in it
     MAIN_PUB_ROUTE_TABLE = get_main_route_table_object(VPC)
-    tagger(MAIN_PUB_ROUTE_TABLE, "Name", '{}-main-rtb'.format(NAME))
+    tagger(MAIN_PUB_ROUTE_TABLE, 'Name', '{}-main-rtb'.format(NAME))
     print('MAIN_PUB_ROUTE_TABLE.id is: {}'.format(MAIN_PUB_ROUTE_TABLE.id))
+
 
     # create route table xx pub subnet and add route to IGW
     PUB_ROUTE_TABLE = VPC.create_route_table()
-    tagger(PUB_ROUTE_TABLE, "Name", '{}-pub-rtb'.format(NAME))
+    tagger(PUB_ROUTE_TABLE, 'Name', '{}-pub-rtb'.format(NAME))
     MGMT_DEFAULT_ROUTE = PUB_ROUTE_TABLE.create_route(
         DestinationCidrBlock='0.0.0.0/0',
         GatewayId=IGW.id)
+
 
     # create subnets
     print('Creating Subnets...')
@@ -259,3 +301,21 @@ if __name__ == "__main__":
     SUBNET_PER_AZ = OPT.subnet_count
     subnet_maker(SUBNET_NAME_LIST, ZONE_ID_LIST, SUBNET_PER_AZ, PUB_ROUTE_TABLE)
 
+
+    # create security groups
+    # BIG-IQ SG
+    PORT_RULE_LIST = [['tcp', 22, 22, '0.0.0.0/0'],
+                      ['tcp', 443, 443, '0.0.0.0/0'],
+                      ['tcp', 9300, 9300, '0.0.0.0/0'],
+                      ['tcp', 27017, 27017, '0.0.0.0/0'],
+                      ['udp', 5404, 5404, '0.0.0.0/0'],
+                      ['udp', 5405, 5405, '0.0.0.0/0'],
+                      ['tcp', 2224, 2224, '0.0.0.0/0'],]
+    # list of dict for IP list
+    SG_IP_RULES = create_security_group_ip_permissions(PORT_RULE_LIST)
+    #pprint(SG_IP_RULES)
+    BIGIQ_SG_ID = create_security_group('bigiq', 'sg for bigiq', VPC.id, SG_IP_RULES)
+    BIGIQ_SG_OBJ = ec2.resource.SecurityGroup(BIGIQ_SG_ID)
+    tagger(BIGIQ_SG_OBJ, 'Name', '{}-bigiq'.format(NAME))
+
+    #TODO add other sucurity groups for BIG-IPs, etc...

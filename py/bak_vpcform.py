@@ -165,6 +165,31 @@ def subnet_maker(subnet_name_list,
                 break
 
 
+def get_vpc_auto_created_security_group_id(sg_group_dict_list, vpc_id):
+    '''
+     get the security_group auto-created when VPC is created
+     only works when no other SG have been created 
+     to get sg_group_dict_list:
+     SG_GROUPS = ec2.client.describe_security_groups()['SecurityGroups']
+    '''
+    for group in sg_group_dict_list:
+        if group['VpcId'] == VPC.id:
+            default_sg_id = group['GroupId']
+
+    return default_sg_id
+
+
+# TEMP for devolpment debug to list info about an object
+def print_object_methods(object):
+    'print methods of object to screen'
+    object_methods = [method_name for method_name in dir(object) if callable(
+        getattr(object, method_name))]
+
+    return pprint(object_methods)
+
+
+
+
 if __name__ == "__main__":
 
     SCRIPT_NAME = sys.argv[0]
@@ -180,6 +205,7 @@ if __name__ == "__main__":
 
     ec2 = Aws(aws_region=REGION, aws_key_id=AWS_KEY_ID, aws_secret_key=AWS_SECRET_KEY)
 
+
     # make a VPC for using resourse
     VPC = ec2.resource.create_vpc(
         CidrBlock=VPC_CIDR_BLOCK,)
@@ -187,6 +213,21 @@ if __name__ == "__main__":
     tagger(VPC, "Name", NAME)
     print('Created VPC: {}'.format(VPC.id))
 
+
+    # get security grouop ID of auto created SG so i can tagit
+    SG_GROUPS = ec2.client.describe_security_groups()['SecurityGroups']
+    DEFAULT_SG_ID = get_vpc_auto_created_security_group_id(SG_GROUPS, VPC.id)
+    print('The DEFAULT_SG_ID is: {}'.format(DEFAULT_SG_ID))
+    # TODO Tage the DEFAULT_SG_ID 
+
+    # enable DNS support for VPC
+    ec2.client.modify_vpc_attribute( VpcId = VPC.id , EnableDnsSupport = { 'Value': True } )
+    ec2.client.modify_vpc_attribute( VpcId = VPC.id , EnableDnsHostnames = { 'Value': True } )
+
+    # temp debug
+    #print_object_methods(ec2.client)
+
+    
     # make internet gateway
     IGW = ec2.resource.create_internet_gateway()
     # This is a crude delay because there is not an existing waiter
