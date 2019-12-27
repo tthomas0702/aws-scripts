@@ -214,13 +214,12 @@ def create_security_group(group_name, description_str, vpc_id, rules_dict_list):
             Description=description_str,
             VpcId=vpc_id)
         security_group_id = response['GroupId']
-        print('Security Group Created {} in vpc {}.'.format(security_group_id, vpc_id))
+        print('Create SG {}'.format(security_group_id))
 
         data = ec2.client.authorize_security_group_ingress(
             GroupId=security_group_id,
             IpPermissions=rules_dict_list
             )
-        print('Ingress Successfully Set')
     except ClientError as e:
         print(e)
 
@@ -311,11 +310,37 @@ if __name__ == "__main__":
                       ['udp', 5404, 5404, '0.0.0.0/0'],
                       ['udp', 5405, 5405, '0.0.0.0/0'],
                       ['tcp', 2224, 2224, '0.0.0.0/0'],]
-    # list of dict for IP list
+    # make list of dict for IP list
     SG_IP_RULES = create_security_group_ip_permissions(PORT_RULE_LIST)
     #pprint(SG_IP_RULES)
     BIGIQ_SG_ID = create_security_group('bigiq', 'sg for bigiq', VPC.id, SG_IP_RULES)
     BIGIQ_SG_OBJ = ec2.resource.SecurityGroup(BIGIQ_SG_ID)
     tagger(BIGIQ_SG_OBJ, 'Name', '{}-bigiq'.format(NAME))
+    print('\tNamed: {}-bigiq'.format(NAME))
 
-    #TODO add other sucurity groups for BIG-IPs, etc...
+    # BIG-IPs SG
+    PORT_RULE_LIST = [['tcp', 22, 22, '0.0.0.0/0'],
+                      ['tcp', 443, 443, '0.0.0.0/0'],
+                      ['tcp', 80, 80, '0.0.0.0/0'],
+                      ['udp', 4353, 4353, '0.0.0.0/0'],
+                      ['udp', 8443, 8443, '0.0.0.0/0'],]
+    BIGIP_SG_ID = create_security_group('bigip', 'sg for bigip', VPC.id, SG_IP_RULES)
+    BIGIP_SG_OBJ = ec2.resource.SecurityGroup(BIGIP_SG_ID)
+    tagger(BIGIP_SG_OBJ, 'Name', '{}-bigip'.format(NAME))
+    print('\tNamed: {}-bigip'.format(NAME))
+ 
+    # linux hosts HTTP servers
+    PORT_RULE_LIST = [['tcp', 22, 22, '0.0.0.0/0'],
+                      ['tcp', 443, 443, '0.0.0.0/0'],
+                      ['tcp', 80, 80, '0.0.0.0/0'],
+                      ['udp', 8080, 8080, '0.0.0.0/0'],]
+    LINUX_SERVER_SG_ID = create_security_group('Linux', 'sg for Linux Servers', VPC.id, SG_IP_RULES)
+    LINUX_SERVER_SG_OBJ = ec2.resource.SecurityGroup(LINUX_SERVER_SG_ID)
+    tagger(LINUX_SERVER_SG_OBJ, 'Name', '{}-linux'.format(NAME))
+    print('\tNamed: {}-linux'.format(NAME))
+
+
+    # TODO
+    # Add in feature to setup for BIG-IQ SSG that is done now with ssg-vpc-create.sh
+
+
