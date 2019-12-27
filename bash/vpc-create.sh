@@ -1,6 +1,16 @@
 #!/bin/bash
 
 # vpc-create.sh version 0.1.0
+# 
+# This is depricated in favor of vpcform.py
+# vpcform.py results is the samve VPC, subnet etc as this script
+# but is easier to maintain moving forward. 
+# I am leaving this here in case I still need a bash AWSCLI version for some reason and also 
+# as a AWSCLI reference if needed. 
+# vpcform.py cannot yet replcase ssg-vpc-create.sh that sets up for deploying ssg with BIG-IQ 
+# and ELB  
+# I plan to add those features into vpcform.py
+
 
 ### SET DEFAULTS HERE ###
 name="test1-new"
