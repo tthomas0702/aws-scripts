@@ -2,12 +2,12 @@
 
 # ver 0.0.1
 # TODO
-# 1) fix the help text to match script
-# 2) add fucntion to list a specific security-group details
+#
+# 1) add fucntion to list a specific security-group details
 
 ### SET DEFAULTS HERE ###
 list=false
-region="us-west-2"
+region=""
 
 ### END DEFAULTS ###
 
@@ -20,13 +20,13 @@ while [ $# -gt 0 ] ; do
   case "$1" in
     -h | --help)
       printf "%s\n" "usage: $SCRIPT  "
-      printf "%s\n" "-n name of VPC to be created default "test1""
-      printf "%s\n" "-s number of subnets to create in each AZ [1,2, or 3] default 3"
-      printf "%s\n" "-r region to create VPC in default us-west-2 (Oregon)"
+      printf "%s\n" "-l list all security-groups for the region given in -r"
+      printf "%s\n" "-d describe details for security-group given (Not implimented yet"
+      printf "%s\n" "-r region to list security-groups (required)"
       printf "%s\n" "-h --help"
-      printf "%s\n\n" "Most switches are optional if set in the defaults section of the script"
+      printf "%s\n\n" "<ADD INFO HERE>"
       printf "%s\n" "Example:"
-      printf "%s\n\n" "$SCRIPT -n devVPC -s 3 -r us-east-1"
+      printf "%s\n\n" "$SCRIPT -l -r us-east-1"
 
       exit 0
       ;;
@@ -57,6 +57,12 @@ while [ $# -gt 0 ] ; do
   shift
 done
 
+# check for required options
+if [ -z $region ]
+then
+  echo "option -r is required"
+  exit 1
+fi
 
 function list_security_groups_in_region {
   aws --region $region ec2 describe-security-groups --query 'SecurityGroups[*].GroupName'
@@ -65,7 +71,8 @@ function list_security_groups_in_region {
 
 main()
 {
-  if [ "$list" = true ]; then
+  if [ "$list" = true ]
+  then
     list_security_groups_in_region
   fi  
 }
