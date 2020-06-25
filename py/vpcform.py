@@ -309,7 +309,9 @@ if __name__ == "__main__":
                       ['tcp', 27017, 27017, '0.0.0.0/0'],
                       ['udp', 5404, 5404, '0.0.0.0/0'],
                       ['udp', 5405, 5405, '0.0.0.0/0'],
-                      ['tcp', 2224, 2224, '0.0.0.0/0'],]
+                      ['tcp', 2224, 2224, '0.0.0.0/0'],
+                      ['tcp', 5432, 5432, '0.0.0.0/0']]
+
     # make list of dict for IP list
     SG_IP_RULES = create_security_group_ip_permissions(PORT_RULE_LIST)
     #pprint(SG_IP_RULES)
